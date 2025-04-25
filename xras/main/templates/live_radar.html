@@ -28,7 +28,7 @@
       right: 20px;
       z-index: 1000;
       background: rgba(255, 255, 255, 0.1);
-      padding: 10px;
+      padding: 2px;
       border-radius: 10px;
       backdrop-filter: blur(10px);
       border: 1px solid rgba(255, 255, 255, 0.2);
@@ -38,7 +38,7 @@
       display: flex;
       overflow-x: auto;
       white-space: nowrap;
-      gap: 12px;
+      gap: 8px;
       padding: 0 10px;
       scrollbar-width: none;
       scroll-padding-left: 1rem;
@@ -50,8 +50,8 @@
     }
 
     .card {
-      min-width: 88px;
-      height: 88px;
+      min-width: 90px;
+      height: 90px;
       border-radius: 10px;
       overflow: hidden;
       background: rgba(255, 255, 255, 0.15);
@@ -82,12 +82,50 @@
 </head>
 
 <body class="h-screen w-screen overflow-hidden text-gray-800 relative">
+  <!-- Settings Button (smaller + clean) -->
+  <div class="absolute top-4 right-4 z-50">
+    <button @click="showSettings = !showSettings"
+            class="p-1.5 bg-white rounded-full shadow-md hover:bg-blue-100 transition">
+      <!-- Heroicon: Adjustments -->
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-600" fill="none"
+          viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round"
+              d="M10.5 6h9m-9 6h9m-9 6h9M3 6h.008v.008H3V6zm0 6h.008v.008H3V12zm0 6h.008v.008H3V18z" />
+      </svg>
+    </button>
+  </div>
 
-  <!-- Top Navigation -->
-  <div class="absolute top-0 w-full z-50 flex items-center justify-end px-4 py-3">
-    <a href="{% url 'main:landing' %}" class="text-sm px-4 py-2 bg-white text-blue-600 hover:bg-blue-600 hover:text-white rounded transition-all">
-      ← Back to Home
-    </a>
+  <!-- Smaller Drawer -->
+  <div x-show="showSettings" @click.away="showSettings = false"
+      class="absolute top-14 right-4 z-50 bg-white border border-gray-200 shadow-xl rounded-lg p-3 w-60 text-sm space-y-3 backdrop-blur-md bg-opacity-95"
+      x-transition:enter="transition ease-out duration-200"
+      x-transition:enter-start="opacity-0 scale-90"
+      x-transition:enter-end="opacity-100 scale-100"
+      x-transition:leave="transition ease-in duration-150"
+      x-transition:leave-start="opacity-100 scale-100"
+      x-transition:leave-end="opacity-0 scale-90">
+
+    <div class="text-sm font-semibold text-gray-700 flex items-center justify-between">
+      Settings
+      <a href="{% url 'main:landing' %}" class="text-blue-600 hover:underline text-xs">← Home</a>
+    </div>
+
+    <div>
+      <label class="block text-xs font-medium text-gray-600 mb-1">Filter by Date</label>
+      <input type="date" x-model="selectedDate"
+            class="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring focus:border-blue-300" />
+    </div>
+
+    <div class="flex gap-1 justify-end pt-1">
+      <button @click="page = 1; loadFrames(); showSettings = false"
+              class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs shadow">
+        Apply
+      </button>
+      <button @click="selectedDate = ''; page = 1; loadFrames(); showSettings = false"
+              class="px-3 py-1 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded text-xs shadow">
+        Clear
+      </button>
+    </div>
   </div>
 
   <!-- Map -->
@@ -95,42 +133,60 @@
 
   <!-- Legend -->
   <div class="legend shadow-md">
-    <img src="{% static 'img/legend.png' %}" alt="Legend" class="h-auto w-full">
+    <img src="{% static 'img/legend.png' %}" alt="Legend" class="h-auto w-full rounded-lg">
   </div>
 
-  <!-- Carousel + Buttons -->
-  <div class="absolute bottom-4 left-0 right-0 z-50 px-4">
-    <div class="flex items-center justify-center gap-8 max-w-6xl mx-auto">
+  <!-- Carousel + Pagination Info -->
+  <div class="absolute bottom-4 left-0 right-0 z-50 px-6">
+    
+    <!-- Pagination Info -->
+    <div class="flex justify-center mb-3">
+      <div class="inline-flex items-center gap-2 bg-white bg-opacity-90 px-4 py-1 rounded-full shadow-md text-gray-600 text-xs font-medium backdrop-blur-md">
+        <template x-if="totalCount > 0">
+          <div class="flex items-center gap-1">
+            <span>Showing</span>
+            <span class="text-blue-600 font-bold" x-text="(page - 1) * pageSize + 1"></span>
+            <span>-</span>
+            <span class="text-blue-600 font-bold" x-text="Math.min(page * pageSize, totalCount)"></span>
+            <span>of</span>
+            <span class="text-blue-600 font-bold" x-text="totalCount"></span>
+            <span>entries</span>
+          </div>
+        </template>
+      </div>
+    </div>
 
-      <!-- Prev -->
+    <!-- Carousel Controls -->
+    <div class="flex items-center justify-center gap-3">
+
+      <!-- Prev Button -->
       <button @click="prevPage"
-        class="w-[88px] h-[88px] flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white rounded-lg shadow disabled:opacity-40 transition"
+        class="w-10 h-10 flex items-center justify-center bg-white hover:bg-blue-100 text-blue-600 rounded-full shadow-md border border-gray-300 disabled:opacity-40 transition"
         :disabled="page === 1">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
         </svg>
       </button>
 
       <!-- Carousel -->
-      <div class="carousel w-full">
-        <div class="shrink-0 w-6"></div>
+      <div class="carousel w-full justify-center">
         <template x-for="(f, i) in frames" :key="f.id">
-          <div class="card w-[88px] h-[88px]" :class="{'selected': i === step}" @click="setStep(i)">
+          <div class="card" style="flex: 0 0 calc(10% - 0.5rem);" :class="{'selected': i === step}" @click="setStep(i)">
             <img :src="f.png" alt="" class="w-full h-[60px] object-cover">
             <div class="timestamp text-xs text-center mt-1" x-text="shortTime(f.time)"></div>
           </div>
         </template>
-        <div class="shrink-0 w-6"></div>
       </div>
 
-      <!-- Next -->
+      <!-- Next Button -->
       <button @click="nextPage"
-        class="w-[88px] h-[88px] flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white rounded-lg shadow transition"
+        class="w-10 h-10 flex items-center justify-center bg-white hover:bg-blue-100 text-blue-600 rounded-full shadow-md border border-gray-300 disabled:opacity-40 transition"
         :disabled="!hasNextPage">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
         </svg>
       </button>
+
     </div>
   </div>
 
@@ -152,10 +208,15 @@
         page: 1,
         pageSize: 10,
         hasNextPage: true,
+        selectedDate: '',
+        showSettings: false,
+        totalCount: 0,
 
         shortTime(ts) {
           const d = new Date(ts);
-          return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+          const date = d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' });
+          const time = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit'});
+          return `${date} ${time}`;
         },
 
         init() {
@@ -186,22 +247,30 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               query: `
-                query ($page: Int, $pageSize: Int) {
-                  latestXmprData(page: $page, pageSize: $pageSize) {
-                    id
-                    time
-                    png
+                query ($page: Int, $pageSize: Int, $date: String) {
+                  latestXmprData(page: $page, pageSize: $pageSize, date: $date) {
+                    totalCount
+                    items {
+                      id
+                      time
+                      png
+                    }
                   }
                 }
               `,
-              variables: { page: this.page, pageSize: this.pageSize }
+              variables: {
+                page: this.page,
+                pageSize: this.pageSize,
+                date: this.selectedDate || null
+              }
             })
           })
           .then(res => res.json())
           .then(({ data }) => {
-            const items = data.latestXmprData || [];
-            this.frames = items.sort((a, b) => new Date(a.time) - new Date(b.time));
-            this.hasNextPage = items.length === this.pageSize;
+            const latest = data.latestXmprData || { totalCount: 0, items: [] };
+            this.totalCount = latest.totalCount;
+            this.frames = latest.items.sort((a, b) => new Date(a.time) - new Date(b.time));
+            this.hasNextPage = (this.page * this.pageSize) < this.totalCount;
 
             this.clearLayers();
             this.addLayers();
