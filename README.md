@@ -179,6 +179,6 @@ REGION=your-aws-region
 
 ---
 
-# 🌟 Built with love for researchers and engineers at **UTM Radar Systems.**
+# 🌟 Built with love for researchers and engineers at **UTM.**
 
 ---
