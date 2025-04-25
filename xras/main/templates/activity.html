@@ -4,36 +4,76 @@
 {% block title %}Activity Logs - XRAS{% endblock %}
 
 {% block content %}
-<div class="max-w-6xl mx-auto">
-    <div class="bg-white rounded-lg shadow-md p-6">
-        <h2 class="text-2xl font-semibold mb-4">Your Activity Logs</h2>
+<div class="max-w-6xl mx-auto p-6">
+    <div class="bg-white dark:bg-gray-900 rounded-lg shadow-md p-6">
+
+        <!-- Title and Page Size Selector -->
+        <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+            <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Your Activity Logs</h2>
+
+            <!-- Page Size Selector -->
+            <form method="get" class="flex items-center gap-2">
+                <label for="limit" class="text-sm text-gray-600 dark:text-gray-400">Page Size:</label>
+                <select name="limit" id="limit" onchange="this.form.submit()"
+                    class="px-3 py-2 rounded-lg border dark:border-gray-600 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white">
+                    {% for size in page_sizes %}
+                        <option value="{{ size }}" {% if limit == size %}selected{% endif %}>{{ size }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+        </div>
 
         {% if activity_logs %}
-        <div class="overflow-x-auto">
-            <table class="table table-zebra w-full text-sm">
-                <thead>
-                    <tr class="bg-gray-100 text-left">
-                        <th>Date</th>
-                        <th>Action</th>
-                        <th>Object</th>
-                        <th>Content Type</th>
+        <div class="overflow-x-auto rounded-xl">
+            <table class="min-w-full divide-y divide-gray-300 dark:divide-gray-700 text-sm text-left">
+                <thead class="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200">
+                    <tr>
+                        <th class="px-4 py-3">Date</th>
+                        <th class="px-4 py-3">Action</th>
+                        <th class="px-4 py-3">Object</th>
+                        <th class="px-4 py-3">Content Type</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-800 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100">
                     {% for entry in activity_logs %}
                     <tr>
-                        <td>{{ entry.action_time|naturaltime }}</td>
-                        <td>{{ entry.get_action_flag_display }}</td>
-                        <td>{{ entry.object_repr }}</td>
-                        <td>{{ entry.content_type }}</td>
+                        <td class="px-4 py-3">{{ entry.action_time|naturaltime }}</td>
+                        <td class="px-4 py-3">{{ entry.get_action_flag_display }}</td>
+                        <td class="px-4 py-3">{{ entry.object_repr }}</td>
+                        <td class="px-4 py-3">{{ entry.content_type }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
-        {% else %}
-        <p class="text-gray-500">No activity logs available.</p>
+
+        <!-- Pagination Top -->
+        {% if activity_logs.has_other_pages %}
+        <div class="flex justify-center mt-6">
+            <nav class="flex gap-2 flex-wrap text-sm font-medium">
+                {% if activity_logs.has_previous %}
+                    <a href="?page={{ activity_logs.previous_page_number }}&limit={{ limit }}" class="px-3 py-1 bg-gray-200 dark:bg-gray-700 rounded hover:bg-gray-300 dark:hover:bg-gray-600">← Prev</a>
+                {% endif %}
+
+                {% for num in activity_logs.paginator.page_range %}
+                    {% if num == activity_logs.number %}
+                        <span class="px-3 py-1 bg-indigo-600 text-white rounded font-semibold">{{ num }}</span>
+                    {% elif num >= activity_logs.number|add:"-2" and num <= activity_logs.number|add:"2" %}
+                        <a href="?page={{ num }}&limit={{ limit }}" class="px-3 py-1 bg-gray-200 dark:bg-gray-700 rounded hover:bg-gray-300 dark:hover:bg-gray-600">{{ num }}</a>
+                    {% endif %}
+                {% endfor %}
+
+                {% if activity_logs.has_next %}
+                    <a href="?page={{ activity_logs.next_page_number }}&limit={{ limit }}" class="px-3 py-1 bg-gray-200 dark:bg-gray-700 rounded hover:bg-gray-300 dark:hover:bg-gray-600">Next →</a>
+                {% endif %}
+            </nav>
+        </div>
         {% endif %}
+
+        {% else %}
+        <p class="text-gray-500 dark:text-gray-400 text-center py-6">No activity logs available.</p>
+        {% endif %}
+
     </div>
 </div>
 {% endblock %}

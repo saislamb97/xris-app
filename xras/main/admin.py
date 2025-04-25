@@ -5,23 +5,21 @@ from django.contrib.contenttypes.admin import GenericTabularInline
 
 from .models import User
 
-
 # -------------------------------------------------------------------
-# Inline Admin for LogEntry
+# Inline Admin for LogEntry (inside User)
 # -------------------------------------------------------------------
 class LogEntryInline(admin.TabularInline):
     model = LogEntry
     extra = 0
-    readonly_fields = [field.name for field in LogEntry._meta.fields]
     can_delete = False
     show_change_link = True
+    readonly_fields = [field.name for field in LogEntry._meta.get_fields() if field.concrete]
 
     def get_queryset(self, request):
-        qs = super().get_queryset(request)
+        qs = super().get_queryset(request).order_by('-action_time')
         if request.user.is_superuser:
-            return qs.order_by('-action_time')
-        return qs.filter(user=request.user).order_by('-action_time')
-
+            return qs
+        return qs.filter(user=request.user)
 
 # -------------------------------------------------------------------
 # Custom User Admin
@@ -42,10 +40,32 @@ class CustomUserAdmin(BaseUserAdmin):
         ('Permissions', {'fields': ('groups', 'user_permissions')}),
         ('Important Dates', {'fields': ('last_login', 'date_joined')}),
     )
-
     add_fieldsets = (
         (None, {
             'classes': ('wide',),
-            'fields': ('email', 'password1', 'password2')
+            'fields': ('email', 'password1', 'password2'),
         }),
     )
+
+# -------------------------------------------------------------------
+# Separate LogEntry Admin
+# -------------------------------------------------------------------
+# Unregister the default LogEntry admin first
+admin.site.unregister(LogEntry)
+
+@admin.register(LogEntry)
+class LogEntryAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'content_type', 'object_repr', 'action_flag', 'change_message', 'action_time')
+    list_filter = ('action_flag', 'content_type')
+    search_fields = ('object_repr', 'change_message', 'user__email')
+    ordering = ('-action_time',)
+    readonly_fields = [field.name for field in LogEntry._meta.get_fields() if field.concrete]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return request.user.is_superuser

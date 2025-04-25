@@ -2,36 +2,99 @@
 {% load static %}
 
 {% block content %}
-<div x-data="xmpr()" class="container mx-auto px-4 py-10">
+<div x-data="xmpr({{ max_file_count }}, {{ max_total_size }})" x-init="init()" class="container mx-auto px-4 py-10">
   <div class="bg-white dark:bg-gray-900 rounded-2xl shadow-lg p-8">
 
-    <!-- Heading -->
-    <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-6">📊 XMPR Data Explorer</h1>
+    <!-- Title Section -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-8 gap-4">
+      <h1 class="text-4xl font-extrabold text-gray-900 dark:text-white mb-1 flex items-center gap-2">
+        📊 <span>XMPR Data Explorer</span>
+      </h1>
 
-    <!-- Actions moved to top -->
-    <div class="mb-6 flex flex-col md:flex-row justify-between items-center">
-      <div class="text-sm text-gray-600 dark:text-gray-400 mb-4 md:mb-0">
-        Showing {{ page_obj.start_index }}–{{ page_obj.end_index }} of {{ page_obj.paginator.count }} entries
-      </div>
-      <div class="flex gap-2">
-        <button @click="downloadSelected" :disabled="selected.length == 0" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg transition">Download Selected</button>
-        <button @click="downloadAllToggle" class="px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg transition">Download All</button>
+      <div class="flex flex-col sm:flex-row gap-2">
+        <button @click="downloadSelected"
+                :disabled="selected.length == 0 || isDownloading"
+                class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-semibold rounded-xl transition-all shadow-md flex items-center justify-center gap-2">
+          <template x-if="!isDownloading">
+            <span>⬇️ Download Selected</span>
+          </template>
+          <template x-if="isDownloading">
+            <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+            </svg>
+          </template>
+        </button>
       </div>
     </div>
 
-    <!-- Filter Bar -->
-    <form method="get" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4 mb-8 items-end">
+    <!-- Meta Info Section -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+
+      <!-- Left Side: Showing Entries -->
       <div>
-        <label for="date_from" class="block text-sm font-semibold text-gray-700 dark:text-gray-300">From Date</label>
-        <input type="date" name="date_from" id="date_from" value="{{ date_from }}" x-model="start" class="w-full mt-1 px-4 py-2 rounded-lg border dark:border-gray-600 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-blue-500 focus:border-blue-500">
+        <p class="text-sm text-gray-600 dark:text-gray-400">
+          Showing 
+          <strong>{{ page_obj.start_index }}–{{ page_obj.end_index }}</strong> 
+          of 
+          <strong>{{ page_obj.paginator.count }}</strong> 
+          entries
+        </p>
+      </div>
+
+      <!-- Right Side: Size and Selection Info -->
+      <div class="flex flex-wrap items-center gap-4 bg-gray-100 dark:bg-gray-800 px-4 py-3 rounded-xl shadow-inner text-sm text-gray-800 dark:text-gray-200">
+
+        <!-- Total Available Size -->
+        <div class="flex items-center gap-2">
+          <svg class="h-4 w-4 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M4 3a1 1 0 011-1h10a1 1 0 011 1v12a1 1 0 11-2 0V4H5v11a1 1 0 11-2 0V3z" />
+          </svg>
+          <span>Total Size: 
+            <strong class="text-blue-600 dark:text-blue-400" x-text="formatBytes(totalSize)"></strong>
+          </span>
+        </div>
+
+        <!-- Selected Size -->
+        <div class="flex items-center gap-2">
+          <svg class="h-4 w-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M9 12l2-2 5 5V6a1 1 0 10-2 0v6l-3-3-4 4-3-3v8a1 1 0 001 1h8a1 1 0 100-2H5v-5l4 4z" />
+          </svg>
+          <span>Selected Size: 
+            <strong class="text-green-600 dark:text-green-400" x-text="formatBytes(selectedSize)"></strong>
+          </span>
+        </div>
+
+        <!-- Selected Files Count -->
+        <div class="flex items-center gap-2">
+          <svg class="h-4 w-4 text-indigo-500" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M13 7H7v6h6V7zM4 6h2v8H4V6zm10 8h2V6h-2v8z" />
+          </svg>
+          <span>Selected Files: 
+            <strong class="text-indigo-600 dark:text-indigo-400" x-text="selectedCount"></strong>
+          </span>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- Filters -->
+    <form method="get" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4 mb-10 items-end">
+      <div>
+        <label for="date_from" class="block text-sm font-medium text-gray-700 dark:text-gray-300">From Date</label>
+        <input type="date" name="date_from" id="date_from" value="{{ date_from }}" x-model="start"
+              class="w-full mt-1 px-4 py-2 rounded-lg border dark:border-gray-600 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-blue-500 focus:border-blue-500">
       </div>
       <div>
-        <label for="date_to" class="block text-sm font-semibold text-gray-700 dark:text-gray-300">To Date</label>
-        <input type="date" name="date_to" id="date_to" value="{{ date_to }}" x-model="end" class="w-full mt-1 px-4 py-2 rounded-lg border dark:border-gray-600 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-blue-500 focus:border-blue-500">
+        <label for="date_to" class="block text-sm font-medium text-gray-700 dark:text-gray-300">To Date</label>
+        <input type="date" name="date_to" id="date_to" value="{{ date_to }}" x-model="end"
+              class="w-full mt-1 px-4 py-2 rounded-lg border dark:border-gray-600 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-blue-500 focus:border-blue-500">
       </div>
       <div>
-        <label for="year" class="block text-sm font-semibold text-gray-700 dark:text-gray-300">Year</label>
-        <select name="year" id="year" class="w-full mt-1 px-4 py-2 rounded-lg border dark:border-gray-600 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white">
+        <label for="year" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Year</label>
+        <select name="year" id="year"
+                class="w-full mt-1 px-4 py-2 rounded-lg border dark:border-gray-600 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white">
           <option value="">All</option>
           {% for y in year_list %}
             <option value="{{ y }}" {% if year|stringformat:"s" == y|stringformat:"s" %}selected{% endif %}>{{ y }}</option>
@@ -39,8 +102,9 @@
         </select>
       </div>
       <div>
-        <label for="month" class="block text-sm font-semibold text-gray-700 dark:text-gray-300">Month</label>
-        <select name="month" id="month" class="w-full mt-1 px-4 py-2 rounded-lg border dark:border-gray-600 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white">
+        <label for="month" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Month</label>
+        <select name="month" id="month"
+                class="w-full mt-1 px-4 py-2 rounded-lg border dark:border-gray-600 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white">
           <option value="">All</option>
           {% for val, name in month_choices %}
             <option value="{{ val }}" {% if month|stringformat:"s" == val|stringformat:"s" %}selected{% endif %}>{{ name }}</option>
@@ -48,16 +112,23 @@
         </select>
       </div>
       <div>
-        <label for="limit" class="block text-sm font-semibold text-gray-700 dark:text-gray-300">Page Size</label>
-        <select name="limit" id="limit" class="w-full mt-1 px-4 py-2 rounded-lg border dark:border-gray-600 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white">
+        <label for="limit" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Page Size</label>
+        <select name="limit" id="limit"
+                class="w-full mt-1 px-4 py-2 rounded-lg border dark:border-gray-600 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white">
           {% for size in page_sizes %}
             <option value="{{ size }}" {% if limit == size %}selected{% endif %}>{{ size }}</option>
           {% endfor %}
         </select>
       </div>
       <div class="flex gap-2">
-        <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold px-4 py-2 rounded-lg transition-all">Apply</button>
-        <a href="{% url 'datasets:xmpr_data' %}" class="w-full bg-gray-400 hover:bg-gray-500 text-white text-center font-semibold px-4 py-2 rounded-lg transition-all">Clear</a>
+        <button type="submit" @click="selected = []"
+                class="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold p-2 rounded-lg transition-all shadow-md">
+          🔍 Apply
+        </button>
+        <a href="{% url 'datasets:xmpr_data' %}" @click="selected = []"
+          class="w-full bg-gray-400 hover:bg-gray-500 text-white text-center font-semibold p-2 rounded-lg transition-all shadow-md">
+          ❌ Clear
+        </a>
       </div>
     </form>
 
@@ -71,13 +142,21 @@
             <th class="px-4 py-3">CSV</th>
             <th class="px-4 py-3">PNG</th>
             <th class="px-4 py-3">TIFF</th>
+            <th class="px-4 py-3">Size</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-200 dark:divide-gray-800 text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-800">
           {% for entry in page_obj %}
           <tr>
             <td class="px-4 py-3">
-              <input type="checkbox" value="{{ entry.id }}" x-model="selected" class="accent-blue-600 w-5 h-5" />
+              <input
+                type="checkbox"
+                value="{{ entry.id }}"
+                data-size="{{ entry.total_file_size }}"
+                x-model="selected"
+                class="accent-blue-600 w-5 h-5"
+              />
+
             </td>
             <td class="px-4 py-3">{{ entry.time|date:"Y-m-d h:i A" }}</td>
         
@@ -109,50 +188,44 @@
                 <span class="text-gray-400 italic">No File</span>
               {% endif %}
             </td>
+
+            <!-- ✅ File Size -->
+            <td class="px-4 py-3">
+              {{ entry.total_file_size_display }}
+            </td>
           </tr>
           {% empty %}
           <tr>
-            <td colspan="5" class="px-4 py-6 text-center text-gray-400 dark:text-gray-500">No data found.</td>
+            <td colspan="6" class="px-4 py-8 text-center">
+              <div class="flex flex-col items-center gap-2">
+                <svg class="w-12 h-12 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path d="M9 12h6m-3-3v6m9 4V5a2 2 0 00-2-2H8.414A2 2 0 007 3.586L3.586 7A2 2 0 003 8.414V19a2 2 0 002 2h14a2 2 0 002-2z" />
+                </svg>
+                <p class="text-gray-500 dark:text-gray-400 text-sm">No matching data found.</p>
+              </div>
+            </td>            
           </tr>
           {% endfor %}
         </tbody>        
       </table>
     </div>
 
-    <!-- Modal -->
-    <template x-if="downloadAll">
-      <div class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-50">
-        <div class="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-lg shadow-lg">
-          <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-4">Download All Data</h2>
-          <form method="get" action="{% url 'datasets:download_xmpr_data' %}">
-            <input type="hidden" name="download_all" value="true">
-            <div class="grid grid-cols-1 gap-4">
-              <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Start Date</label>
-                <input type="date" name="start" x-model="start" required class="w-full mt-1 px-4 py-2 rounded-md border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white">
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">End Date</label>
-                <input type="date" name="end" x-model="end" required class="w-full mt-1 px-4 py-2 rounded-md border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white">
-              </div>
-            </div>
-            <div class="mt-6 flex justify-end gap-3">
-              <button type="button" @click="downloadAll = false" class="bg-gray-300 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-4 py-2 rounded-lg">Cancel</button>
-              <button type="submit" class="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-lg">Download</button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </template>
-
-    <!-- Smart Pagination with First, Last, and Ellipses -->
+    <!-- Smart Pagination with Filters Preserved -->
     <div class="mt-10 flex justify-center flex-wrap gap-2 text-sm font-medium">
+      <!-- Previous -->
+      {% if page_obj.has_previous %}
+      <a href="?page={{ page_obj.previous_page_number }}&{{ query_string }}"
+        class="px-3 py-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600">
+        ← Prev
+      </a>
+      {% endif %}
+
       {% with total=page_obj.paginator.num_pages current=page_obj.number %}
         {% if total > 1 %}
           
           <!-- First page -->
           {% if current > 3 %}
-            <a href="?page=1&limit={{ limit }}" class="px-3 py-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600">1</a>
+            <a href="?page=1&{{ query_string }}" class="px-3 py-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600">1</a>
             <span class="px-2 text-gray-400">…</span>
           {% endif %}
 
@@ -162,7 +235,7 @@
               {% if num == current %}
                 <span class="px-3 py-1 bg-indigo-600 text-white rounded-md font-semibold">{{ num }}</span>
               {% else %}
-                <a href="?page={{ num }}&limit={{ limit }}" class="px-3 py-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600">{{ num }}</a>
+                <a href="?page={{ num }}&{{ query_string }}" class="px-3 py-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600">{{ num }}</a>
               {% endif %}
             {% endif %}
           {% endfor %}
@@ -170,37 +243,92 @@
           <!-- Last page -->
           {% if current < total|add:"-3" %}
             <span class="px-2 text-gray-400">…</span>
-            <a href="?page={{ total }}&limit={{ limit }}" class="px-3 py-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600">{{ total }}</a>
+            <a href="?page={{ total }}&{{ query_string }}" class="px-3 py-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600">{{ total }}</a>
           {% endif %}
 
         {% endif %}
       {% endwith %}
-    </div>
 
+      <!-- Next -->
+      {% if page_obj.has_next %}
+      <a href="?page={{ page_obj.next_page_number }}&{{ query_string }}"
+        class="px-3 py-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600">
+        Next →
+      </a>
+      {% endif %}
+    </div>
   </div>
 </div>
 
 <script>
-function xmpr() {
-  return {
-    selected: [],
-    downloadAll: false,
-    start: '{{ date_from }}',
-    end: '{{ date_to }}',
-    toggleAll(event) {
-      this.selected = event.target.checked
-        ? Array.from(document.querySelectorAll('tbody input[type=checkbox]')).map(cb => cb.value)
-        : [];
-    },
-    downloadSelected() {
-      const params = new URLSearchParams();
-      this.selected.forEach(id => params.append('ids[]', id));
-      window.location.href = `{% url 'datasets:download_xmpr_data' %}?${params.toString()}`;
-    },
-    downloadAllToggle() {
-      this.downloadAll = true;
+  function xmpr(maxFileCount, maxTotalSizeMB) {
+    return {
+      selected: [],
+      start: '{{ date_from }}',
+      end: '{{ date_to }}',
+      maxFileCount,
+      maxTotalSizeBytes: maxTotalSizeMB * 1024 * 1024,
+      totalAvailableSize: 0,
+      isDownloading: false,
+
+      init() {
+        this.calculateTotalAvailableSize();
+      },
+
+      calculateTotalAvailableSize() {
+        this.totalAvailableSize = Array.from(document.querySelectorAll('tbody input[type=checkbox]'))
+          .map(cb => parseInt(cb.dataset.size || 0))
+          .reduce((a, b) => a + b, 0);
+      },
+
+      get totalSize() {
+        return this.totalAvailableSize;
+      },
+
+      get selectedSize() {
+        return Array.from(document.querySelectorAll('tbody input[type=checkbox]'))
+          .filter(cb => this.selected.includes(cb.value))
+          .map(cb => parseInt(cb.dataset.size || 0))
+          .reduce((a, b) => a + b, 0);
+      },
+
+      get selectedCount() {
+        return this.selected.length;
+      },
+
+      get isSelectedOverLimit() {
+        return this.selectedCount > this.maxFileCount || this.selectedSize > this.maxTotalSizeBytes;
+      },
+
+      toggleAll(event) {
+        this.selected = event.target.checked
+          ? Array.from(document.querySelectorAll('tbody input[type=checkbox]')).map(cb => cb.value)
+          : [];
+      },
+
+      async downloadSelected() {
+        if (this.isSelectedOverLimit) {
+          alert(`Selection exceeds limits. Max ${this.maxFileCount} files and ${maxTotalSizeMB} MB.`);
+          return;
+        }
+        if (this.selected.length === 0) return;
+
+        this.isDownloading = true;
+        const params = new URLSearchParams();
+        this.selected.forEach(id => params.append('ids[]', id));
+        
+        window.location.href = `{% url 'datasets:download_xmpr_data' %}?${params.toString()}`;
+        this.isDownloading = false;
+      },
+
+      formatBytes(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+      }
     }
   }
-}
 </script>
 {% endblock %}

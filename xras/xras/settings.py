@@ -183,6 +183,20 @@ CHANNEL_LAYERS = {
     },
 }
 
+# Allow bigger uploads
+DATA_UPLOAD_MAX_MEMORY_SIZE = 100 * 1024 * 1024  # 100 MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 100 * 1024 * 1024  # 100 MB
+
+# Allow more fields in form data
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 10000
+
+# Maximum single file size allowed (for custom validations)
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+
+# Maximum xmpr file counts and size
+XMPR_MAX_FILE_COUNT = 100
+XMPR_MAX_TOTAL_SIZE_MB = 500  # in MB
+
 # ------------------------------------------------------------------------------
 # EMAIL CONFIGURATION
 # ------------------------------------------------------------------------------
@@ -192,8 +206,7 @@ EMAIL_PORT = 465
 EMAIL_USE_SSL = True
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
-EMAIL_FROM = os.getenv('EMAIL_FROM')
-DEFAULT_FROM_EMAIL = EMAIL_FROM
+DEFAULT_FROM_EMAIL = os.getenv('EMAIL_FROM')
 
 HOST_URL = os.getenv('HOST_URL')
 STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY')
@@ -249,21 +262,51 @@ MEDIA_ROOT = BASE_DIR.parent / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-UNFOLD = {
-    "SITE_HEADER": "XRAS Admin",
-    "SITE_TITLE": "XRAS",
-    "SHOW_HISTORY": True,
-    "SIDEBAR": {
-        "show_search": True,
-        "show_all_applications": True,
-        "navigation": []
-    }
-}
-
 DAISY_SETTINGS = {
-    "SITE_HEADER": "XRAS Admin",
-    "SITE_TITLE": "XRAS",
-    'INDEX_TITLE': 'Hi, welcome to XRAS Admin dashboard',  # The title for the index page of dashboard
-    'SITE_LOGO': '/static/img/logo.png',  # Path to the logo image displayed in the sidebar
-    'SIDEBAR_FOOTNOTE': '', # add footnote to sidebar
+    "SITE_HEADER": "XRAS Admin",  # Top-left header text
+    "SITE_TITLE": "XRAS",  # Browser tab title
+    "INDEX_TITLE": "Hi, welcome to XRAS Admin dashboard",  # Main dashboard greeting
+    "SITE_LOGO": "/static/img/logo.png",     # Logo in sidebar
+    "FAVICON_URL": "/static/img/favicon.ico", # 👈 Favicon URL
+    'LOAD_FULL_STYLES': True,  # If True, loads full DaisyUI components in the admin (useful if you have custom template overrides)
+    'SHOW_CHANGELIST_FILTER': False,  # If True, the filter sidebar will open by default on changelist views
+    'DONT_SUPPORT_ME': True, # Hide github link in sidebar footer
+    "EXTRA_STYLES": ["/static/css/admin_custom.css"],  # 👈 Add your CSS here
+    "EXTRA_SCRIPTS": ["/static/js/admin_custom.js"],   # 👈 Add your JS here (optional)
+    "SIDEBAR_FOOTNOTE": "© 2025 XRAS – Powered by UTM",
+    'APPS_REORDER': {
+        'auth': {
+            'icon': 'fa-solid fa-user-shield',
+            'name': 'Permissions',
+            'divider_title': "Authentication",
+            'hide': False,
+        },
+        'account': {
+            'icon': 'fa-solid fa-user',
+            'name': 'Accounts',
+            'divider_title': 'User Accounts',
+        },
+        'socialaccount': {
+            'icon': 'fa-solid fa-users',
+            'name': 'Social Accounts',
+        },
+        'sites': {
+            'icon': 'fa-solid fa-globe',
+            'name': 'Sites',
+            'divider_title': 'Configuration',
+        },
+        'datasets': {
+            'icon': 'fa-solid fa-database',
+            'name': 'Radar Datasets',
+            'divider_title': 'Radar Data',
+        },
+        'subscriptions': {
+            'icon': 'fa-solid fa-crown',
+            'name': 'Subscriptions',
+        },
+        'main': {
+            'icon': 'fa-solid fa-earth-asia',
+            'name': 'Main',
+        },
+    }
 }

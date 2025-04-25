@@ -18,14 +18,18 @@ class XmprDownloadLogInline(admin.TabularInline):
 @admin.register(XmprData)
 class XmprDataAdmin(admin.ModelAdmin):
     list_display = (
-        'time', 'created_at', 'updated_at',
-        'download_csv', 'preview_png', 'download_tiff', 'formatted_size'
+        'time', 'created_at', 'updated_at', 'file_size',
+        'download_csv', 'download_tiff', 'preview_png'
     )
     list_filter = ('time', 'created_at', 'updated_at')
     search_fields = ('time',)
     ordering = ('-time',)
     readonly_fields = ('created_at', 'updated_at', 'preview_png', 'download_tiff', 'download_csv')
     inlines = [XmprDownloadLogInline]
+
+    def file_size(self, obj):
+        return obj.total_file_size_display
+    file_size.short_description = "Total Size"
 
     def download_csv(self, obj):
         if obj.csv_url:
@@ -60,15 +64,6 @@ class XmprDataAdmin(admin.ModelAdmin):
             )
         return format_html('<span style="color:gray;">No Image</span>')
     preview_png.short_description = "PNG Preview"
-
-    def formatted_size(self, obj):
-        if obj.size < 1024:
-            return f"{obj.size} B"
-        elif obj.size < 1024 * 1024:
-            return f"{obj.size / 1024:.1f} KB"
-        else:
-            return f"{obj.size / (1024 * 1024):.2f} MB"
-    formatted_size.short_description = "Total Size"
 
 
 @admin.register(XmprDownloadLog)

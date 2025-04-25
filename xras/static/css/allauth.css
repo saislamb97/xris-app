@@ -1,0 +1,150 @@
+/* Root variables (customize these in :root or Tailwind config) */
+:root {
+  --color-background: #0f172a;
+  --color-surface: #1e293b;
+  --color-primary: #f8fafc;
+  --color-secondary: #3b82f6;
+  --color-tertiary: #ef4444;
+  --radius-default: 0.5rem;
+  --transition-speed: 0.3s;
+}
+
+/* 🔹 Base Page Styles */
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: var(--color-background);
+  color: var(--color-primary);
+  padding: 2rem 1rem;
+  line-height: 1.7;
+}
+
+/* 🔹 Container */
+.auth-container {
+  max-width: 500px;
+  margin: auto;
+  background-color: var(--color-surface);
+  padding: 2.5rem;
+  border-radius: var(--radius-default);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+  transition: box-shadow var(--transition-speed);
+}
+
+/* 🔹 Headings */
+h1, h2, h3 {
+  font-weight: 700;
+  color: var(--color-primary);
+  margin-bottom: 1rem;
+  font-size: 1.75rem;
+}
+
+/* 🔹 Form Labels */
+form label {
+  display: block;
+  margin-top: 1.25rem;
+  margin-bottom: 0.25rem;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+/* 🔹 Input Fields */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="submit"],
+select,
+textarea {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  color: var(--color-primary);
+  background-color: #0f172a;
+  border: 2px solid #334155;
+  border-radius: var(--radius-default);
+  margin-top: 0.25rem;
+  transition: all var(--transition-speed);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--color-secondary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+  outline: none;
+}
+
+/* 🔹 Submit & Button */
+button,
+input[type="submit"] {
+  background-color: var(--color-secondary);
+  color: #ffffff;
+  font-weight: 600;
+  padding: 0.75rem 1rem;
+  margin-top: 1.5rem;
+  border: none;
+  border-radius: var(--radius-default);
+  cursor: pointer;
+  transition: background var(--transition-speed), transform 0.2s ease;
+}
+
+button:hover,
+input[type="submit"]:hover {
+  background-color: #2563eb;
+  transform: translateY(-2px);
+}
+
+/* 🔹 Link Styles */
+a {
+  color: var(--color-secondary);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+  color: #93c5fd;
+}
+
+/* 🔹 Error Lists */
+.errorlist {
+  margin-top: 0.5rem;
+  padding-left: 0;
+  list-style: none;
+  font-size: 0.875rem;
+  color: var(--color-tertiary);
+}
+
+.errorlist li::before {
+  content: "⚠ ";
+  font-weight: bold;
+}
+
+/* 🔹 Flash Messages */
+.error-message,
+.success-message {
+  font-weight: 500;
+  padding: 1rem;
+  text-align: center;
+  border-radius: var(--radius-default);
+  margin-top: 1rem;
+}
+
+.error-message {
+  background-color: var(--color-tertiary);
+  color: white;
+}
+
+.success-message {
+  background-color: var(--color-secondary);
+  color: white;
+}
+
+/* 🔹 Extra spacing for form groups */
+.form-row,
+.fieldWrapper {
+  margin-bottom: 1.5rem;
+}
+
+/* 🔹 Center form titles */
+.auth-container h1, .auth-container h2 {
+  text-align: center;
+}

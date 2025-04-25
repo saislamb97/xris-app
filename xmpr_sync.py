@@ -9,24 +9,28 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Config
-SOURCE_DIR = os.getenv("SOURCE_DIR")                  # e.g., ./incoming
-DESTINATION_DIR = os.getenv("DESTINATION_DIR")        # e.g., ./media/xmpr
+# --- Config ---
+SOURCE_DIR = os.getenv("SOURCE_DIR")
+DESTINATION_DIR = os.getenv("DESTINATION_DIR")
 BUCKET = os.getenv("S3_BUCKET")
 REGION = os.getenv("REGION")
 LOG_FILE = "upload.log"
 
 # PostgreSQL connection
-conn = psycopg2.connect(
-    host=os.getenv("RDS_HOST"),
-    port=os.getenv("RDS_PORT"),
-    dbname=os.getenv("RDS_DB"),
-    user=os.getenv("RDS_USER"),
-    password=os.getenv("RDS_PASSWORD"),
-    options='-c search_path=xras'
-)
+try:
+    conn = psycopg2.connect(
+        host=os.getenv("RDS_HOST"),
+        port=os.getenv("RDS_PORT"),
+        dbname=os.getenv("RDS_DB"),
+        user=os.getenv("RDS_USER"),
+        password=os.getenv("RDS_PASSWORD"),
+        options='-c search_path=xras'
+    )
+except Exception as e:
+    print(f"[DB ERROR] {e}")
+    exit(1)
 
-# Initialize S3 if credentials and region exist
+# Initialize S3 if available
 s3 = None
 s3_available = False
 if BUCKET and REGION and os.getenv("AWS_ACCESS_KEY_ID") and os.getenv("AWS_SECRET_ACCESS_KEY"):
@@ -39,41 +43,61 @@ if BUCKET and REGION and os.getenv("AWS_ACCESS_KEY_ID") and os.getenv("AWS_SECRE
         )
         s3_available = True
     except (BotoCoreError, ClientError, ValueError) as e:
-        print(f"[WARN] S3 not available or misconfigured: {e}")
+        print(f"[S3 WARNING] {e}")
 
 SUPPORTED_EXTS = ['.csv', '.png', '.tif', '.tiff']
 
+# --- Logging ---
 def log(msg):
     print(msg)
     with open(LOG_FILE, "a", encoding="utf-8") as f:
         f.write(f"{datetime.now().isoformat()} - {msg}\n")
 
-def file_already_uploaded(filename):
+# --- Helpers ---
+def file_already_uploaded(file_name):
     with conn.cursor() as cur:
         cur.execute("""
             SELECT 1 FROM public.datasets_xmprdata 
-            WHERE csv LIKE %s OR png LIKE %s OR tiff LIKE %s 
+            WHERE csv = %s OR png = %s OR tiff = %s 
             LIMIT 1
-        """, (f'%{filename}%', f'%{filename}%', f'%{filename}%'))
+        """, (
+            f"xmpr/csv/{file_name}",
+            f"xmpr/png/{file_name}",
+            f"xmpr/tiff/{file_name}"
+        ))
         return cur.fetchone() is not None
 
-def insert_record(time, csv=None, png=None, tiff=None, size=0):
+def insert_record(time, csv=None, png=None, tiff=None, csv_size=0, png_size=0, tiff_size=0):
     with conn.cursor() as cur:
         cur.execute("""
-            INSERT INTO public.datasets_xmprdata (time, csv, png, tiff, size, created_at, updated_at)
-            VALUES (%s, %s, %s, %s, %s, now(), now())
-        """, (time, csv, png, tiff, size))
+            INSERT INTO public.datasets_xmprdata (time, csv, png, tiff, csv_size, png_size, tiff_size, created_at, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, now(), now())
+        """, (time, csv, png, tiff, csv_size, png_size, tiff_size))
         conn.commit()
 
-
 def get_datetime_from_name(name):
+    """
+    Extract datetime from filename.
+    Expected filename starts with: YYYYMMDD_HHMMSS
+    Example: 20241222_041800_Rain_000.png
+    """
     try:
-        return datetime.strptime(name[:19], '%Y-%m-%d_%H-%M-%S')
-    except Exception:
+        # Find the first 15 characters
+        timestamp_part = name[:15]
+
+        # Validate basic structure
+        if len(timestamp_part) == 15 and timestamp_part[8] == '_':
+            dt = datetime.strptime(timestamp_part, '%Y%m%d_%H%M%S')
+            return dt
+        else:
+            raise ValueError(f"Invalid timestamp format: {timestamp_part}")
+    
+    except Exception as e:
+        log(f"[TIME PARSE WARNING] Failed to parse time from {name}: {e}")
         return datetime.now()
 
-def upload_or_copy_file(path, rel_path, ext):
-    file_name = os.path.basename(path)
+def upload_or_copy_file(full_path, ext):
+    file_name = os.path.basename(full_path)
     subfolder = {
         '.csv': 'csv',
         '.png': 'png',
@@ -81,24 +105,22 @@ def upload_or_copy_file(path, rel_path, ext):
         '.tiff': 'tiff'
     }.get(ext, 'other')
 
-    s3_key = f"xmpr/{subfolder}/{rel_path}"
-    
-    # Attempt S3 upload
+    rel_path = f"xmpr/{subfolder}/{file_name}"
+
     if s3_available:
         try:
-            s3.upload_file(path, BUCKET, s3_key)
-            url = f"https://{BUCKET}.s3.{REGION}.amazonaws.com/{s3_key}"
-            log(f"[S3 UPLOADED] {file_name} → {url}")
-            return url
+            s3.upload_file(full_path, BUCKET, rel_path)
+            log(f"[S3 UPLOADED] {file_name} → {rel_path}")
         except ClientError as e:
-            log(f"[S3 ERROR] Failed to upload {file_name}: {e}")
+            log(f"[S3 ERROR] Failed upload {file_name}: {e}")
+            return None
+    else:
+        dest_path = os.path.join(DESTINATION_DIR, rel_path)
+        os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+        shutil.copy2(full_path, dest_path)
+        log(f"[LOCAL COPY] {file_name} → {dest_path}")
 
-    # Fallback to local path
-    local_path = os.path.join(DESTINATION_DIR, 'xmpr', subfolder, rel_path)
-    os.makedirs(os.path.dirname(local_path), exist_ok=True)
-    shutil.copy2(path, local_path)
-    log(f"[LOCAL COPY] {file_name} → {local_path}")
-    return os.path.relpath(local_path)
+    return rel_path
 
 def scan_and_upload():
     for root, _, files in sorted(os.walk(SOURCE_DIR), key=lambda x: x[0]):
@@ -112,22 +134,34 @@ def scan_and_upload():
                 continue
 
             full_path = os.path.join(root, file)
-            rel_path = os.path.relpath(full_path, SOURCE_DIR).replace("\\", "/")
-            uploaded_url_or_path = upload_or_copy_file(full_path, rel_path, ext)
+            storage_path = upload_or_copy_file(full_path, ext)
+            if not storage_path:
+                continue  # skip if upload failed
+
             dt = get_datetime_from_name(file)
-            size = os.path.getsize(full_path)
+            file_size = os.path.getsize(full_path)
 
-            csv_url = uploaded_url_or_path if ext == '.csv' else None
-            png_url = uploaded_url_or_path if ext == '.png' else None
-            tiff_url = uploaded_url_or_path if ext in ['.tif', '.tiff'] else None
+            csv = png = tiff = None
+            csv_size = png_size = tiff_size = 0
 
-            insert_record(dt, csv_url, png_url, tiff_url, size)
+            if ext == '.csv':
+                csv = storage_path
+                csv_size = file_size
+            elif ext == '.png':
+                png = storage_path
+                png_size = file_size
+            elif ext in ['.tif', '.tiff']:
+                tiff = storage_path
+                tiff_size = file_size
+
+            insert_record(dt, csv=csv, png=png, tiff=tiff, csv_size=csv_size, png_size=png_size, tiff_size=tiff_size)
             log(f"[DB INSERTED] {file} → DB record created")
-            
-            # Optional: remove original file after success
-            # os.remove(full_path)
-            # log(f"[CLEANUP] Removed original: {file}")
 
 if __name__ == "__main__":
-    scan_and_upload()
-    conn.close()
+    try:
+        scan_and_upload()
+    except Exception as e:
+        log(f"[FATAL ERROR] {e}")
+    finally:
+        conn.close()
+        log("[DONE] Connection closed.")
