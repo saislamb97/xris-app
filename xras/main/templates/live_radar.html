@@ -82,22 +82,20 @@
 </head>
 
 <body class="h-screen w-screen overflow-hidden text-gray-800 relative">
-  <!-- Settings Button (smaller + clean) -->
+  <!-- Settings Button (minimalistic + beautiful) -->
   <div class="absolute top-4 right-4 z-50">
     <button @click="showSettings = !showSettings"
-            class="p-1.5 bg-white rounded-full shadow-md hover:bg-blue-100 transition">
-      <!-- Heroicon: Adjustments -->
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-600" fill="none"
-          viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round"
-              d="M10.5 6h9m-9 6h9m-9 6h9M3 6h.008v.008H3V6zm0 6h.008v.008H3V12zm0 6h.008v.008H3V18z" />
+            class="p-2 bg-white/80 hover:bg-blue-100 border border-gray-300 rounded-full shadow-lg backdrop-blur-md transition-all">
+      <!-- Heroicon: Sliders -->
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12m-12 5.25h12m-12 5.25h12M3.75 6.75h.008v.008h-.008V6.75zm0 5.25h.008v.008h-.008v-.008zm0 5.25h.008v.008h-.008v-.008z" />
       </svg>
     </button>
   </div>
 
-  <!-- Smaller Drawer -->
+  <!-- Settings Drawer (beautiful clean panel) -->
   <div x-show="showSettings" @click.away="showSettings = false"
-      class="absolute top-14 right-4 z-50 bg-white border border-gray-200 shadow-xl rounded-lg p-3 w-60 text-sm space-y-3 backdrop-blur-md bg-opacity-95"
+      class="absolute top-16 right-4 z-50 w-64 bg-white/95 border border-gray-300 shadow-2xl rounded-2xl p-5 text-sm space-y-4 backdrop-blur-md"
       x-transition:enter="transition ease-out duration-200"
       x-transition:enter-start="opacity-0 scale-90"
       x-transition:enter-end="opacity-100 scale-100"
@@ -105,27 +103,34 @@
       x-transition:leave-start="opacity-100 scale-100"
       x-transition:leave-end="opacity-0 scale-90">
 
-    <div class="text-sm font-semibold text-gray-700 flex items-center justify-between">
-      Settings
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+      <div class="text-gray-700 font-bold text-base">⚙️ Settings</div>
       <a href="{% url 'main:landing' %}" class="text-blue-600 hover:underline text-xs">← Home</a>
     </div>
 
+    <!-- Divider -->
+    <div class="border-t border-gray-200"></div>
+
+    <!-- Date Filter -->
     <div>
-      <label class="block text-xs font-medium text-gray-600 mb-1">Filter by Date</label>
+      <label class="block text-xs font-semibold text-gray-600 mb-1">Filter by Date</label>
       <input type="date" x-model="selectedDate"
-            class="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring focus:border-blue-300" />
+            class="w-full px-3 py-2 text-xs border border-gray-300 rounded-lg focus:ring focus:border-blue-400 bg-gray-50">
     </div>
 
-    <div class="flex gap-1 justify-end pt-1">
+    <!-- Buttons -->
+    <div class="flex gap-2 justify-end pt-2">
       <button @click="page = 1; loadFrames(); showSettings = false"
-              class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs shadow">
-        Apply
+              class="px-4 py-1.5 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow">
+        🔍 Apply
       </button>
       <button @click="selectedDate = ''; page = 1; loadFrames(); showSettings = false"
-              class="px-3 py-1 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded text-xs shadow">
-        Clear
+              class="px-4 py-1.5 text-xs font-semibold bg-gray-300 hover:bg-gray-400 text-gray-700 rounded-lg shadow">
+        ❌ Clear
       </button>
     </div>
+
   </div>
 
   <!-- Map -->
@@ -269,14 +274,14 @@
           .then(({ data }) => {
             const latest = data.latestXmprData || { totalCount: 0, items: [] };
             this.totalCount = latest.totalCount;
-            this.frames = latest.items.sort((a, b) => new Date(a.time) - new Date(b.time));
+            this.frames = latest.items.sort((a, b) => new Date(b.time) - new Date(a.time));
             this.hasNextPage = (this.page * this.pageSize) < this.totalCount;
 
             this.clearLayers();
             this.addLayers();
 
             if (this.frames.length > 0) {
-              this.setStep(this.frames.length - 1);
+              this.setStep(0); // <-- select the first one (latest on the left)
             }
           })
           .catch(err => console.error('GraphQL error', err));
@@ -320,11 +325,13 @@
 
           this.$nextTick(() => {
             const cards = document.querySelectorAll('.carousel .card');
-            cards[i]?.scrollIntoView({
-              behavior: 'smooth',
-              inline: 'center',
-              block: 'nearest'
-            });
+            if (cards.length && cards[i]) {
+              cards[i].scrollIntoView({
+                behavior: 'smooth',
+                inline: 'center',
+                block: 'nearest'
+              });
+            }
           });
 
           this.map.fitBounds([[102.461318999, 1.882996107], [103.003984880, 2.428917168]], {
