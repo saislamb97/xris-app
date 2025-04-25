@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto px-4 py-10">
+
+  <div class="bg-white dark:bg-gray-900 shadow-lg rounded-2xl p-8">
+    <!-- Heading -->
+    <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-6">💼 Subscription Center</h1>
+
+    <!-- Current Plan Display -->
+    <div class="mb-8">
+      {% if active_subscription %}
+        <div class="bg-green-100 dark:bg-green-800 text-green-900 dark:text-green-100 p-4 rounded-lg shadow flex justify-between items-center">
+          <div>
+            <p class="text-lg font-semibold">Current Plan: {{ active_subscription.package.name }}</p>
+            <p class="text-sm">Status: 
+              <span class="font-medium">{{ active_subscription.status }}</span> — 
+              Expires: {{ active_subscription.expiry_date|date:"Y-m-d h:i A" }}
+            </p>
+          </div>
+          <form method="POST" action="{% url 'subscriptions:customer' %}">
+            {% csrf_token %}
+            <button type="submit" class="text-sm bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg transition">
+              Manage Billing
+            </button>
+          </form>
+        </div>
+      {% else %}
+        <div class="bg-yellow-100 dark:bg-yellow-800 text-yellow-900 dark:text-yellow-100 p-4 rounded-lg shadow">
+          <p class="text-lg font-semibold">You're on the <span class="underline">Free Plan</span>.</p>
+          <p class="text-sm">Upgrade to enjoy premium features.</p>
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- Available Plans -->
+    <h2 class="text-xl font-bold text-gray-800 dark:text-white mb-4">📦 Choose a Plan</h2>
+    <form action="{% url 'subscriptions:checkout' %}" method="post" novalidate class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+      {% csrf_token %}
+      {% for package in available_packages %}
+        <label class="relative border rounded-lg p-6 cursor-pointer shadow-sm bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white hover:border-blue-500 transition ring-offset-2 focus-within:ring-2 focus-within:ring-blue-500">
+          <input type="radio" name="selected_plan" value="{{ package.stripe_price_id }}" class="absolute top-2 right-2 w-5 h-5 accent-blue-600" aria-label="Select {{ package.name }}" {% if active_subscription and package.id == active_subscription.package.id %}checked{% endif %}>
+          
+          {% if active_subscription and package.id == active_subscription.package.id %}
+            <span class="absolute top-3 left-3 bg-green-600 text-white text-xs font-semibold px-2 py-0.5 rounded">Current</span>
+          {% endif %}
+
+          <div class="text-lg font-semibold mt-4">{{ package.name }}</div>
+
+          {% if package.description %}
+            <ul class="mt-2 text-sm text-gray-500 dark:text-gray-300 space-y-1 list-disc pl-5">
+              {% for item in package.description %}
+                {% for key, val in item.items %}
+                  <li><span class="font-medium">{{ key }}:</span> {{ val }}</li>
+                {% endfor %}
+              {% endfor %}
+            </ul>
+          {% endif %}
+
+          <div class="text-xl font-bold mt-4">RM {{ package.price }}</div>
+
+          {% if package.name != 'Free' %}
+            <div class="text-xs text-gray-400">Duration: {{ package.duration_days }} days</div>
+          {% endif %}
+        </label>
+      {% endfor %}
+      <div class="md:col-span-2 flex justify-end mt-2">
+        <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white font-semibold px-6 py-2 rounded-lg transition">Subscribe / Upgrade</button>
+      </div>
+    </form>
+
+    <!-- History Table -->
+    <h2 class="text-xl font-bold text-gray-800 dark:text-white mb-4">📜 Subscription History</h2>
+    <div class="overflow-x-auto border rounded-lg shadow">
+      <table class="min-w-full divide-y divide-gray-300 dark:divide-gray-700 text-sm text-left">
+        <thead class="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200">
+          <tr>
+            <th class="px-4 py-3">Plan</th>
+            <th class="px-4 py-3">Status</th>
+            <th class="px-4 py-3">Start Date</th>
+            <th class="px-4 py-3">Expires</th>
+            <th class="px-4 py-3">Price</th>
+          </tr>
+        </thead>
+        <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700 text-gray-800 dark:text-gray-100">
+          {% for sub in subscription_history %}
+            <tr>
+              <td class="px-4 py-3">{{ sub.package.name }}</td>
+              <td class="px-4 py-3">
+                {% if sub.status == 'ACTIVE' %}
+                  <span class="text-green-600 font-semibold">Active</span>
+                {% elif sub.status == 'CANCELLED' %}
+                  <span class="text-red-500 font-semibold">Cancelled</span>
+                {% elif sub.status == 'EXPIRED' %}
+                  <span class="text-yellow-500 font-semibold">Expired</span>
+                {% else %}
+                  <span class="text-gray-500">{{ sub.status }}</span>
+                {% endif %}
+              </td>
+              <td class="px-4 py-3">{{ sub.created_at|date:"Y-m-d h:i A" }}</td>
+              <td class="px-4 py-3">{{ sub.expiry_date|date:"Y-m-d h:i A" }}</td>
+              <td class="px-4 py-3">RM {{ sub.price|floatformat:2 }}</td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="5" class="text-center px-4 py-6 text-gray-500 dark:text-gray-400 italic">No subscriptions yet.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

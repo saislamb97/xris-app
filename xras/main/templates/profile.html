@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+{% load static humanize heroicons %}
+
+{% block title %}Profile - XRAS{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto px-4 py-10">
+  <div class="bg-white dark:bg-gray-900 shadow-xl rounded-xl p-8">
+
+    <!-- Header -->
+    <div class="flex items-center gap-4 mb-8">
+      {% if user.avatar %}
+        <img src="{{ user.avatar.url }}" alt="Avatar" class="w-16 h-16 rounded-full object-cover ring-2 ring-blue-500 shadow">
+      {% else %}
+        <div class="w-16 h-16 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center ring-2 ring-gray-300">
+          {% heroicon_outline "user" class="w-8 h-8 text-gray-500" %}
+        </div>
+      {% endif %}
+
+      <div>
+        <h2 class="text-xl font-semibold text-gray-900 dark:text-white">{{ user.get_full_name|default:user.username }}</h2>
+        <p class="text-sm text-gray-600 dark:text-gray-400">{{ user.email }}</p>
+      </div>
+    </div>
+
+    <!-- Form -->
+    <form method="POST" enctype="multipart/form-data" class="space-y-6">
+      {% csrf_token %}
+      <input type="hidden" name="profileForm-submit" value="1">
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
+        {{ profile_form.email }}
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Username</label>
+        {{ profile_form.username }}
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">First Name</label>
+          {{ profile_form.first_name }}
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Last Name</label>
+          {{ profile_form.last_name }}
+        </div>
+      </div>
+
+      <div>
+        <label for="avatar-upload" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Avatar</label>
+      
+        <!-- Custom styled button -->
+        <label for="avatar-upload" class="inline-block bg-gray-200 hover:bg-gray-300 text-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-200 font-medium py-2 px-4 rounded cursor-pointer transition">
+          Choose Image
+        </label>
+      
+        <!-- File name display -->
+        <span id="file-name" class="ml-3 text-sm text-gray-500 dark:text-gray-400">No file selected</span>
+      
+        <!-- Render actual hidden input -->
+        {{ profile_form.avatar }}
+      </div>      
+
+      <div class="pt-4">
+        <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold px-4 py-2 rounded-lg transition">
+          Update Profile
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+    function previewFileName() {
+      const input = document.getElementById('avatar-upload');
+      const fileNameSpan = document.getElementById('file-name');
+      if (input.files.length > 0) {
+        fileNameSpan.textContent = input.files[0].name;
+      } else {
+        fileNameSpan.textContent = 'No file selected';
+      }
+    }
+  </script>
+  
+{% endblock %}

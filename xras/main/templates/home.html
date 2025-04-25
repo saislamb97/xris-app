@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Dashboard | XRAS{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto space-y-6">
+
+    <!-- Header -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h1 class="text-3xl font-bold text-gray-800 mb-2">Welcome, {{ request.user.first_name|default:request.user.username }} 👋</h1>
+        <p class="text-gray-600">This is your radar analysis and subscription dashboard.</p>
+    </div>
+
+    <!-- Stat Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div class="bg-blue-100 p-4 rounded-lg shadow text-blue-900">
+            <h2 class="text-lg font-semibold">Subscription</h2>
+            <p class="text-sm text-blue-800 mt-1">Plan: <span class="font-medium">{{ request.user.subscription.package.name|default:"Free" }}</span></p>
+            <p class="text-sm mt-1">Status: 
+                <span class="inline-block px-2 py-0.5 rounded bg-white text-xs font-medium">
+                    {{ request.user.subscription.status|default:"Inactive" }}
+                </span>
+            </p>
+        </div>
+
+        <div class="bg-green-100 p-4 rounded-lg shadow text-green-900">
+            <h2 class="text-lg font-semibold">Days Left</h2>
+            <p class="text-3xl font-bold mt-2">
+                {{ request.user.subscription.days_remaining|default:"0" }}
+            </p>
+        </div>
+
+        <div class="bg-purple-100 p-4 rounded-lg shadow text-purple-900">
+            <h2 class="text-lg font-semibold">XMPR Datasets</h2>
+            <p class="text-3xl font-bold mt-2">{{ xmpr_count|default:"0" }}</p>
+        </div>
+
+        <div class="bg-yellow-100 p-4 rounded-lg shadow text-yellow-900">
+            <h2 class="text-lg font-semibold">Last Active</h2>
+            <p class="text-sm mt-2">{{ request.user.last_login|naturaltime }}</p>
+        </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="bg-white rounded-lg shadow p-6 mt-6">
+        <h2 class="text-xl font-semibold mb-4">Recent Activity</h2>
+        {% if recent_logs %}
+            <ul class="space-y-2 text-sm text-gray-700">
+                {% for log in recent_logs %}
+                    <li class="border-l-4 border-blue-500 pl-4 py-1">
+                        <span class="font-medium">{{ log.get_action_flag_display }}</span>
+                        — {{ log.object_repr }} <span class="text-gray-400">({{ log.action_time|naturaltime }})</span>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p class="text-gray-500">No recent activity found.</p>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}

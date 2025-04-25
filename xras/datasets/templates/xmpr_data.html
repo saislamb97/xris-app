@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div x-data="xmpr()" class="container mx-auto px-4 py-10">
+  <div class="bg-white dark:bg-gray-900 rounded-2xl shadow-lg p-8">
+
+    <!-- Heading -->
+    <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-6">📊 XMPR Data Explorer</h1>
+
+    <!-- Actions moved to top -->
+    <div class="mb-6 flex flex-col md:flex-row justify-between items-center">
+      <div class="text-sm text-gray-600 dark:text-gray-400 mb-4 md:mb-0">
+        Showing {{ page_obj.start_index }}–{{ page_obj.end_index }} of {{ page_obj.paginator.count }} entries
+      </div>
+      <div class="flex gap-2">
+        <button @click="downloadSelected" :disabled="selected.length == 0" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg transition">Download Selected</button>
+        <button @click="downloadAllToggle" class="px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg transition">Download All</button>
+      </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <form method="get" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4 mb-8 items-end">
+      <div>
+        <label for="date_from" class="block text-sm font-semibold text-gray-700 dark:text-gray-300">From Date</label>
+        <input type="date" name="date_from" id="date_from" value="{{ date_from }}" x-model="start" class="w-full mt-1 px-4 py-2 rounded-lg border dark:border-gray-600 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-blue-500 focus:border-blue-500">
+      </div>
+      <div>
+        <label for="date_to" class="block text-sm font-semibold text-gray-700 dark:text-gray-300">To Date</label>
+        <input type="date" name="date_to" id="date_to" value="{{ date_to }}" x-model="end" class="w-full mt-1 px-4 py-2 rounded-lg border dark:border-gray-600 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-blue-500 focus:border-blue-500">
+      </div>
+      <div>
+        <label for="year" class="block text-sm font-semibold text-gray-700 dark:text-gray-300">Year</label>
+        <select name="year" id="year" class="w-full mt-1 px-4 py-2 rounded-lg border dark:border-gray-600 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white">
+          <option value="">All</option>
+          {% for y in year_list %}
+            <option value="{{ y }}" {% if year|stringformat:"s" == y|stringformat:"s" %}selected{% endif %}>{{ y }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="month" class="block text-sm font-semibold text-gray-700 dark:text-gray-300">Month</label>
+        <select name="month" id="month" class="w-full mt-1 px-4 py-2 rounded-lg border dark:border-gray-600 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white">
+          <option value="">All</option>
+          {% for val, name in month_choices %}
+            <option value="{{ val }}" {% if month|stringformat:"s" == val|stringformat:"s" %}selected{% endif %}>{{ name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="limit" class="block text-sm font-semibold text-gray-700 dark:text-gray-300">Page Size</label>
+        <select name="limit" id="limit" class="w-full mt-1 px-4 py-2 rounded-lg border dark:border-gray-600 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white">
+          {% for size in page_sizes %}
+            <option value="{{ size }}" {% if limit == size %}selected{% endif %}>{{ size }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="flex gap-2">
+        <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold px-4 py-2 rounded-lg transition-all">Apply</button>
+        <a href="{% url 'datasets:xmpr_data' %}" class="w-full bg-gray-400 hover:bg-gray-500 text-white text-center font-semibold px-4 py-2 rounded-lg transition-all">Clear</a>
+      </div>
+    </form>
+
+    <!-- Data Table -->
+    <div class="overflow-x-auto rounded-xl shadow-inner">
+      <table class="min-w-full divide-y divide-gray-300 dark:divide-gray-700 text-sm text-left">
+        <thead class="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200">
+          <tr>
+            <th class="px-4 py-3"><input type="checkbox" @change="toggleAll" class="accent-blue-600 w-5 h-5" /></th>
+            <th class="px-4 py-3">Timestamp</th>
+            <th class="px-4 py-3">CSV</th>
+            <th class="px-4 py-3">PNG</th>
+            <th class="px-4 py-3">TIFF</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-200 dark:divide-gray-800 text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-800">
+          {% for entry in page_obj %}
+          <tr>
+            <td class="px-4 py-3">
+              <input type="checkbox" value="{{ entry.id }}" x-model="selected" class="accent-blue-600 w-5 h-5" />
+            </td>
+            <td class="px-4 py-3">{{ entry.time|date:"Y-m-d h:i A" }}</td>
+        
+            <!-- CSV -->
+            <td class="px-4 py-3">
+              {% if entry.csv_url %}
+                <a href="{{ entry.csv_url }}" class="text-blue-600 hover:underline" download>Download</a>
+              {% else %}
+                <span class="text-gray-400 italic">No File</span>
+              {% endif %}
+            </td>
+        
+            <!-- PNG -->
+            <td class="px-4 py-3">
+              {% if entry.png_url %}
+                <a href="{{ entry.png_url }}" target="_blank">
+                  <img src="{{ entry.png_url }}" alt="PNG Preview" class="w-16 h-auto rounded shadow hover:scale-105 transition-transform duration-200">
+                </a>
+              {% else %}
+                <span class="text-gray-400 italic">No Image</span>
+              {% endif %}
+            </td>
+        
+            <!-- TIFF -->
+            <td class="px-4 py-3">
+              {% if entry.tiff_url %}
+                <a href="{{ entry.tiff_url }}" class="text-blue-600 hover:underline" download>Download</a>
+              {% else %}
+                <span class="text-gray-400 italic">No File</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="5" class="px-4 py-6 text-center text-gray-400 dark:text-gray-500">No data found.</td>
+          </tr>
+          {% endfor %}
+        </tbody>        
+      </table>
+    </div>
+
+    <!-- Modal -->
+    <template x-if="downloadAll">
+      <div class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-50">
+        <div class="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-lg shadow-lg">
+          <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-4">Download All Data</h2>
+          <form method="get" action="{% url 'datasets:download_xmpr_data' %}">
+            <input type="hidden" name="download_all" value="true">
+            <div class="grid grid-cols-1 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Start Date</label>
+                <input type="date" name="start" x-model="start" required class="w-full mt-1 px-4 py-2 rounded-md border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">End Date</label>
+                <input type="date" name="end" x-model="end" required class="w-full mt-1 px-4 py-2 rounded-md border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white">
+              </div>
+            </div>
+            <div class="mt-6 flex justify-end gap-3">
+              <button type="button" @click="downloadAll = false" class="bg-gray-300 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-4 py-2 rounded-lg">Cancel</button>
+              <button type="submit" class="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-lg">Download</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </template>
+
+    <!-- Smart Pagination with First, Last, and Ellipses -->
+    <div class="mt-10 flex justify-center flex-wrap gap-2 text-sm font-medium">
+      {% with total=page_obj.paginator.num_pages current=page_obj.number %}
+        {% if total > 1 %}
+          
+          <!-- First page -->
+          {% if current > 3 %}
+            <a href="?page=1&limit={{ limit }}" class="px-3 py-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600">1</a>
+            <span class="px-2 text-gray-400">…</span>
+          {% endif %}
+
+          <!-- Main range: 2 before, current, 3 after -->
+          {% for num in page_obj.paginator.page_range %}
+            {% if num >= current|add:"-2" and num <= current|add:"3" %}
+              {% if num == current %}
+                <span class="px-3 py-1 bg-indigo-600 text-white rounded-md font-semibold">{{ num }}</span>
+              {% else %}
+                <a href="?page={{ num }}&limit={{ limit }}" class="px-3 py-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600">{{ num }}</a>
+              {% endif %}
+            {% endif %}
+          {% endfor %}
+
+          <!-- Last page -->
+          {% if current < total|add:"-3" %}
+            <span class="px-2 text-gray-400">…</span>
+            <a href="?page={{ total }}&limit={{ limit }}" class="px-3 py-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600">{{ total }}</a>
+          {% endif %}
+
+        {% endif %}
+      {% endwith %}
+    </div>
+
+  </div>
+</div>
+
+<script>
+function xmpr() {
+  return {
+    selected: [],
+    downloadAll: false,
+    start: '{{ date_from }}',
+    end: '{{ date_to }}',
+    toggleAll(event) {
+      this.selected = event.target.checked
+        ? Array.from(document.querySelectorAll('tbody input[type=checkbox]')).map(cb => cb.value)
+        : [];
+    },
+    downloadSelected() {
+      const params = new URLSearchParams();
+      this.selected.forEach(id => params.append('ids[]', id));
+      window.location.href = `{% url 'datasets:download_xmpr_data' %}?${params.toString()}`;
+    },
+    downloadAllToggle() {
+      this.downloadAll = true;
+    }
+  }
+}
+</script>
+{% endblock %}

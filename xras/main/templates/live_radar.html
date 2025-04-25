@@ -1,0 +1,282 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en" x-data="radarApp()" x-init="init()" class="h-full text-gray-800">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>XRAS – Live Radar</title>
+  <link rel="icon" href="{% static 'img/favicon.ico' %}" />
+
+  <!-- Tailwind & Alpine -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+  <!-- MapLibre -->
+  <link href="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.css" rel="stylesheet" />
+  <script src="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js"></script>
+
+  <style>
+    html, body, #map {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+
+    .legend {
+      position: absolute;
+      bottom: 160px;
+      right: 20px;
+      z-index: 1000;
+      background: rgba(255, 255, 255, 0.1);
+      padding: 10px;
+      border-radius: 10px;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .carousel {
+      display: flex;
+      overflow-x: auto;
+      white-space: nowrap;
+      gap: 12px;
+      padding: 0 10px;
+      scrollbar-width: none;
+      scroll-padding-left: 1rem;
+      scroll-padding-right: 1rem;
+    }
+
+    .carousel::-webkit-scrollbar {
+      display: none;
+    }
+
+    .card {
+      min-width: 88px;
+      height: 88px;
+      border-radius: 10px;
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.15);
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background-color: rgb(65, 63, 61);
+      backdrop-filter: blur(8px);
+    }
+
+    .card.selected {
+      border: 3px solid #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5);
+    }
+
+    .card img {
+      width: 100%;
+      height: 60px;
+      object-fit: cover;
+    }
+
+    .card .timestamp {
+      font-size: 0.75rem;
+      color: white;
+      text-align: center;
+    }
+  </style>
+</head>
+
+<body class="h-screen w-screen overflow-hidden text-gray-800 relative">
+
+  <!-- Top Navigation -->
+  <div class="absolute top-0 w-full z-50 flex items-center justify-end px-4 py-3">
+    <a href="{% url 'main:landing' %}" class="text-sm px-4 py-2 bg-white text-blue-600 hover:bg-blue-600 hover:text-white rounded transition-all">
+      ← Back to Home
+    </a>
+  </div>
+
+  <!-- Map -->
+  <div id="map" class="absolute top-0 bottom-[144px] left-0 right-0 z-0"></div>
+
+  <!-- Legend -->
+  <div class="legend shadow-md">
+    <img src="{% static 'img/legend.png' %}" alt="Legend" class="h-auto w-full">
+  </div>
+
+  <!-- Carousel + Buttons -->
+  <div class="absolute bottom-4 left-0 right-0 z-50 px-4">
+    <div class="flex items-center justify-center gap-8 max-w-6xl mx-auto">
+
+      <!-- Prev -->
+      <button @click="prevPage"
+        class="w-[88px] h-[88px] flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white rounded-lg shadow disabled:opacity-40 transition"
+        :disabled="page === 1">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+        </svg>
+      </button>
+
+      <!-- Carousel -->
+      <div class="carousel w-full">
+        <div class="shrink-0 w-6"></div>
+        <template x-for="(f, i) in frames" :key="f.id">
+          <div class="card w-[88px] h-[88px]" :class="{'selected': i === step}" @click="setStep(i)">
+            <img :src="f.png" alt="" class="w-full h-[60px] object-cover">
+            <div class="timestamp text-xs text-center mt-1" x-text="shortTime(f.time)"></div>
+          </div>
+        </template>
+        <div class="shrink-0 w-6"></div>
+      </div>
+
+      <!-- Next -->
+      <button @click="nextPage"
+        class="w-[88px] h-[88px] flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white rounded-lg shadow transition"
+        :disabled="!hasNextPage">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Alpine Logic -->
+  <script>
+    function radarApp() {
+      const BBOX = [
+        [102.461318999, 2.428917168],
+        [103.003984880, 2.428917168],
+        [103.003984880, 1.882996107],
+        [102.461318999, 1.882996107]
+      ];
+
+      return {
+        map: null,
+        frames: [],
+        step: 0,
+        layerIds: [],
+        page: 1,
+        pageSize: 10,
+        hasNextPage: true,
+
+        shortTime(ts) {
+          const d = new Date(ts);
+          return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+        },
+
+        init() {
+          this.map = new maplibregl.Map({
+            container: 'map',
+            center: [102.7327, 2.1559],
+            zoom: 7,
+            style: {
+              version: 8,
+              sources: {
+                osm: {
+                  type: 'raster',
+                  tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+                  tileSize: 256
+                }
+              },
+              layers: [{ id: 'base', type: 'raster', source: 'osm' }]
+            }
+          });
+
+          this.map.addControl(new maplibregl.NavigationControl(), 'top-left');
+          this.loadFrames();
+        },
+
+        loadFrames() {
+          fetch('/graphql', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              query: `
+                query ($page: Int, $pageSize: Int) {
+                  latestXmprData(page: $page, pageSize: $pageSize) {
+                    id
+                    time
+                    png
+                  }
+                }
+              `,
+              variables: { page: this.page, pageSize: this.pageSize }
+            })
+          })
+          .then(res => res.json())
+          .then(({ data }) => {
+            const items = data.latestXmprData || [];
+            this.frames = items.sort((a, b) => new Date(a.time) - new Date(b.time));
+            this.hasNextPage = items.length === this.pageSize;
+
+            this.clearLayers();
+            this.addLayers();
+
+            if (this.frames.length > 0) {
+              this.setStep(this.frames.length - 1);
+            }
+          })
+          .catch(err => console.error('GraphQL error', err));
+        },
+
+        clearLayers() {
+          this.layerIds.forEach(id => {
+            const srcId = id.replace('rain_', 'rain_src_');
+            if (this.map.getLayer(id)) this.map.removeLayer(id);
+            if (this.map.getSource(srcId)) this.map.removeSource(srcId);
+          });
+          this.layerIds = [];
+        },
+
+        addLayers() {
+          this.frames.forEach((f, i) => {
+            const srcId = `rain_src_${i}`;
+            const lyId = `rain_${i}`;
+            this.layerIds.push(lyId);
+            this.map.addSource(srcId, {
+              type: 'image',
+              url: f.png,
+              coordinates: BBOX
+            });
+            this.map.addLayer({
+              id: lyId,
+              type: 'raster',
+              source: srcId,
+              layout: { visibility: 'none' },
+              paint: { 'raster-opacity': 0.85 }
+            });
+          });
+        },
+
+        setStep(i) {
+          this.step = i;
+
+          this.layerIds.forEach((id, idx) => {
+            this.map.setLayoutProperty(id, 'visibility', idx === i ? 'visible' : 'none');
+          });
+
+          this.$nextTick(() => {
+            const cards = document.querySelectorAll('.carousel .card');
+            cards[i]?.scrollIntoView({
+              behavior: 'smooth',
+              inline: 'center',
+              block: 'nearest'
+            });
+          });
+
+          this.map.fitBounds([[102.461318999, 1.882996107], [103.003984880, 2.428917168]], {
+            padding: 20,
+            duration: 800
+          });
+        },
+
+        nextPage() {
+          this.page++;
+          this.loadFrames();
+        },
+
+        prevPage() {
+          if (this.page > 1) {
+            this.page--;
+            this.loadFrames();
+          }
+        }
+      };
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% load static humanize %}
+
+{% block title %}Activity Logs - XRAS{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h2 class="text-2xl font-semibold mb-4">Your Activity Logs</h2>
+
+        {% if activity_logs %}
+        <div class="overflow-x-auto">
+            <table class="table table-zebra w-full text-sm">
+                <thead>
+                    <tr class="bg-gray-100 text-left">
+                        <th>Date</th>
+                        <th>Action</th>
+                        <th>Object</th>
+                        <th>Content Type</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in activity_logs %}
+                    <tr>
+                        <td>{{ entry.action_time|naturaltime }}</td>
+                        <td>{{ entry.get_action_flag_display }}</td>
+                        <td>{{ entry.object_repr }}</td>
+                        <td>{{ entry.content_type }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-gray-500">No activity logs available.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
