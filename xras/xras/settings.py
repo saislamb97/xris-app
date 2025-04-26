@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import timedelta
+from urllib.parse import urlparse
 
 # ------------------------------------------------------------------------------
 # Load environment variables
@@ -31,18 +32,22 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'insecure-secret-key-for-dev')
 DEBUG = os.getenv('DEBUG', 'True').lower() in ['true', '1', 'yes']
 
+HOST_URL = os.getenv('HOST_URL', 'http://127.0.0.1:8000')
+# --- Parse domain only ---
+parsed_host = urlparse(HOST_URL).hostname or '127.0.0.1'
+
+# --- Django settings ---
 ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
     '[::1]',
-    'c9ea-118-101-170-62.ngrok-free.app',
+    parsed_host,
 ]
-
 
 CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:8000",
     "http://127.0.0.1:8080",
-    "https://f721-118-101-170-62.ngrok-free.app"
+    HOST_URL,
 ]
 
 # Production-specific security settings
@@ -64,6 +69,7 @@ X_FRAME_OPTIONS = 'DENY'
 # Application definition
 
 INSTALLED_APPS = [
+    'daphne',
     'django_daisy',
     'django.contrib.admin',
     'django.contrib.auth',
@@ -208,7 +214,6 @@ EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
 DEFAULT_FROM_EMAIL = os.getenv('EMAIL_FROM')
 
-HOST_URL = os.getenv('HOST_URL')
 STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY')
 STRIPE_WEBHOOK_SECRET = os.getenv('STRIPE_WEBHOOK_SECRET')
 
