@@ -9,9 +9,12 @@ from django.shortcuts import render
 from django.utils.timezone import localtime
 from django.contrib.auth.decorators import login_required
 from allauth.account.decorators import verified_email_required
+from django.contrib import messages
+from subscriptions.models import Subscription, SubscriptionPackage
 from .models import XmprData, XmprDownloadLog
 import zipstream
 from django.utils.http import urlencode
+from django.shortcuts import redirect
 
 
 def get_client_ip(request):
@@ -22,6 +25,8 @@ def get_client_ip(request):
 @login_required
 @verified_email_required
 def xmpr_data(request):
+    user = request.user
+
     # --- Filters ---
     search = request.GET.get('search', '').strip()
     date_from = request.GET.get('date_from')
@@ -31,7 +36,7 @@ def xmpr_data(request):
     limit = int(request.GET.get('limit', 10))
     page_num = request.GET.get('page')
 
-    # --- QuerySet: entries where at least one file exists and size > 0 ---
+    # --- QuerySet ---
     qs = XmprData.objects.filter(
         Q(csv__isnull=False, csv_size__gt=0) |
         Q(png__isnull=False, png_size__gt=0) |
@@ -54,7 +59,7 @@ def xmpr_data(request):
     if month:
         qs = qs.filter(time__month=month)
 
-    qs = qs.order_by('-time')  # Newest first
+    qs = qs.order_by('-time')
 
     # --- Pagination ---
     paginator = Paginator(qs, limit)
@@ -65,18 +70,13 @@ def xmpr_data(request):
     year_list = [d.year for d in years]
     month_choices = [(i, calendar.month_name[i]) for i in range(1, 13)]
 
-    # --- Build query string for pagination links ---
-    filter_params = {
-        'search': search,
-        'date_from': date_from,
-        'date_to': date_to,
-        'year': year,
-        'month': month,
-        'limit': limit,
-    }
-    query_string = urlencode({k: v for k, v in filter_params.items() if v})
+    # --- Active Subscription Only ---
+    active_subscription = Subscription.objects.filter(
+        user=user, 
+        status=Subscription.STATUS_ACTIVE
+    ).first()
 
-    return render(request, 'xmpr_data.html', {
+    context = {
         'page_obj': page_obj,
         'search': search,
         'date_from': date_from,
@@ -89,21 +89,45 @@ def xmpr_data(request):
         'month_choices': month_choices,
         'max_file_count': getattr(settings, 'XMPR_MAX_FILE_COUNT', 100),
         'max_total_size': getattr(settings, 'XMPR_MAX_TOTAL_SIZE_MB', 500),
-        'query_string': query_string,  # 🔥 Pass this to template
-    })
+        'query_string': urlencode({k: v for k, v in {
+            'search': search,
+            'date_from': date_from,
+            'date_to': date_to,
+            'year': year,
+            'month': month,
+            'limit': limit,
+        }.items() if v}),
+        'active_subscription': active_subscription,
+        'PACKAGE_FREE': SubscriptionPackage.PACKAGE_FREE,
+    }
+    return render(request, 'xmpr_data.html', context)
 
 
 @login_required
 @verified_email_required
 def download_xmpr_data(request):
+    user = request.user
+
+    # --- Check Subscription ---
+    active_subscription = Subscription.objects.filter(user=user, status=Subscription.STATUS_ACTIVE).first()
+
+    if not active_subscription:
+        messages.error(request, "You must have an active Premium subscription to download files.")
+        return redirect('datasets:xmpr_data')  # 🔥 Redirect nicely
+
+    if active_subscription.package.name != SubscriptionPackage.PACKAGE_PREMIUM:
+        messages.error(request, "Only Premium subscribers can download XMPR data.")
+        return redirect('datasets:xmpr_data')
+
+    # --- Max limits ---
     max_file_count = getattr(settings, 'XMPR_MAX_FILE_COUNT', 100)
     max_total_size_bytes = getattr(settings, 'XMPR_MAX_TOTAL_SIZE_MB', 500) * 1024 * 1024
 
     selected_ids = request.GET.getlist('ids[]')
     if not selected_ids:
-        return HttpResponse("No files selected for download.", status=400)
+        messages.error(request, "No files selected for download.")
+        return redirect('datasets:xmpr_data')
 
-    # Query entries where at least one file exists
     qs = XmprData.objects.filter(
         id__in=selected_ids
     ).filter(
@@ -113,14 +137,17 @@ def download_xmpr_data(request):
     )
 
     if not qs.exists():
-        return HttpResponse("No valid files found to download.", status=404)
+        messages.error(request, "No valid files found to download.")
+        return redirect('datasets:xmpr_data')
 
     if qs.count() > max_file_count:
-        return HttpResponse(f"Too many files selected (Max {max_file_count})", status=400)
+        messages.error(request, f"Too many files selected (Max {max_file_count}).")
+        return redirect('datasets:xmpr_data')
 
     total_size = sum(entry.total_file_size for entry in qs)
     if total_size > max_total_size_bytes:
-        return HttpResponse(f"Total file size exceeds limit (Max {settings.XMPR_MAX_TOTAL_SIZE_MB} MB)", status=400)
+        messages.error(request, f"Total file size exceeds limit (Max {settings.XMPR_MAX_TOTAL_SIZE_MB} MB).")
+        return redirect('datasets:xmpr_data')
 
     # --- Stream ZIP generation ---
     def generator():
@@ -137,11 +164,10 @@ def download_xmpr_data(request):
                         z.write(field.path, arcname)
                         XmprDownloadLog.objects.create(
                             xmpr_data=entry,
-                            user=request.user,
+                            user=user,
                             ip_address=get_client_ip(request)
                         )
                     except Exception as e:
-                        # Don't stop for single file errors
                         print(f"Error adding {field.path}: {e}")
 
         for chunk in z:

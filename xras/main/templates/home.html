@@ -12,17 +12,42 @@
     <p>Here’s your XRAS radar system overview.</p>
   </div>
 
+    {% if active_subscription %}
+      {% if active_subscription.pending_cancellation %}
+        <p class="text-sm mt-1 text-yellow-600">
+          ⚠️ Your subscription will cancel automatically on {{ active_subscription.expiry_date|date:"Y-m-d" }}.
+        </p>
+      {% endif %}
+    {% endif %}
+
   <!-- Stat Cards -->
   <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-    <div class="bg-blue-100 p-4 rounded-lg shadow text-blue-900">
+    <div class="{% if active_subscription %}bg-green-200 text-green-900{% else %}bg-yellow-100 text-yellow-900{% endif %} p-4 rounded-lg shadow">
       <h2 class="text-lg font-semibold">Subscription</h2>
-      <p class="mt-1">Plan: <span class="font-medium">{{ subscription.package.name|default:"Free" }}</span></p>
-      <p class="mt-1">Status:
-        <span class="inline-block px-2 py-0.5 rounded bg-white text-xs font-semibold">
-          {{ subscription.status|default:"Inactive" }}
-        </span>
-      </p>
-    </div>
+    
+      {% if active_subscription %}
+        <p class="mt-1">
+          Your current Plan: 
+          <span class="font-medium">{{ active_subscription.package.name }}</span>
+        </p>
+        <p class="text-sm mt-1">
+          Expiry Date: 
+          <span class="font-medium">{{ active_subscription.expiry_date|date:"Y-m-d h:i A" }}</span>
+        </p>
+    
+      {% else %}
+        <p class="mt-1">
+          Your current Plan: 
+          <span class="font-medium">{{ PACKAGE_FREE }}</span>
+        </p>
+        <p class="text-sm mt-2">
+          <a href="{% url 'subscriptions:subscription' %}" class="text-blue-600 hover:underline font-semibold">
+            Upgrade now
+          </a>
+          to enjoy premium features!
+        </p>
+      {% endif %}
+    </div>    
 
     <div class="bg-purple-100 p-4 rounded-lg shadow text-purple-900">
       <h2 class="text-lg font-semibold">XMPR Datasets</h2>

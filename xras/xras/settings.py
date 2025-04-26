@@ -35,7 +35,7 @@ ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
     '[::1]',
-    'f721-118-101-170-62.ngrok-free.app',  # ✅ Add your ngrok domain here
+    'c9ea-118-101-170-62.ngrok-free.app',
 ]
 
 

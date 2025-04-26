@@ -14,15 +14,15 @@ class SubscriptionPackageAdmin(admin.ModelAdmin):
 @admin.register(Subscription)
 class SubscriptionAdmin(admin.ModelAdmin):
     list_display = (
-        'user_email', 'package', 'status_colored', 'is_current_bool',
+        'user_email', 'package', 'status_colored', 'is_current_bool', 'pending_cancellation_bool',
         'created_at', 'expiry_date', 'days_remaining'
     )
-    list_filter = ('status', 'package__name', 'created_at', 'expiry_date')
+    list_filter = ('status', 'package__name', 'created_at', 'expiry_date', 'pending_cancellation')
     search_fields = ('user__email', 'stripe_subscription_id', 'stripe_customer_id')
     ordering = ('-created_at',)
     readonly_fields = (
         'created_at', 'renewed_at', 'user_email', 'status_colored',
-        'days_remaining', 'stripe_subscription_id', 'stripe_customer_id'
+        'days_remaining', 'stripe_subscription_id', 'stripe_customer_id', 'pending_cancellation_bool'
     )
 
     def user_email(self, obj):
@@ -42,7 +42,12 @@ class SubscriptionAdmin(admin.ModelAdmin):
     def is_current_bool(self, obj):
         return obj.is_current
     is_current_bool.boolean = True
-    is_current_bool.short_description = "Active"
+    is_current_bool.short_description = "Currently Active"
+
+    def pending_cancellation_bool(self, obj):
+        return obj.pending_cancellation
+    pending_cancellation_bool.boolean = True
+    pending_cancellation_bool.short_description = "Pending Cancellation"
 
     def days_remaining(self, obj):
         return obj.days_remaining

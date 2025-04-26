@@ -49,10 +49,10 @@ class Subscription(models.Model):
         (STATUS_EXPIRED, 'Expired'),
     ]
 
-    user = models.OneToOneField(
+    user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name='subscription'
+        related_name='subscriptions'  # plural now
     )
     package = models.ForeignKey(
         SubscriptionPackage,
@@ -67,6 +67,7 @@ class Subscription(models.Model):
 
     # Status & Dates
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_ACTIVE)
+    pending_cancellation = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     renewed_at = models.DateTimeField(auto_now=True)
     expiry_date = models.DateTimeField()

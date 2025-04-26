@@ -8,6 +8,7 @@ from django.utils.timezone import now
 from django.contrib.admin.models import LogEntry
 from django.shortcuts import render
 from datasets.models import XmprData, XmprDownloadLog
+from subscriptions.models import Subscription, SubscriptionPackage
 from .forms import ProfileForm
 from django.db.models import Count, Q, Sum
 from django.core.paginator import Paginator
@@ -73,8 +74,8 @@ def home(request):
     chart_labels_30 = [entry['day'].strftime('%Y-%m-%d') for entry in downloads_30]
     chart_data_30 = [entry['count'] for entry in downloads_30]
 
-    # --- Subscription (if available) ---
-    subscription = getattr(user, 'subscription', None)
+    # --- Active Subscription Only ---
+    active_subscription = Subscription.objects.filter(user=user, status=Subscription.STATUS_ACTIVE).first()
 
     return render(request, 'home.html', {
         'recent_logs': logs,
@@ -87,7 +88,8 @@ def home(request):
         'chart_data_7': chart_data_7,
         'chart_labels_30': chart_labels_30,
         'chart_data_30': chart_data_30,
-        'subscription': subscription,
+        'active_subscription': active_subscription,
+        'PACKAGE_FREE': SubscriptionPackage.PACKAGE_FREE,  # pass it
     })
 
 

@@ -12,9 +12,10 @@
       </h1>
 
       <div class="flex flex-col sm:flex-row gap-2">
-        <button @click="downloadSelected"
-                :disabled="selected.length == 0 || isDownloading"
-                class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-semibold rounded-xl transition-all shadow-md flex items-center justify-center gap-2">
+        <button 
+          @click="downloadSelected"
+          :disabled="selected.length == 0 || isDownloading {% if not active_subscription or active_subscription.package.name == PACKAGE_FREE %} || true {% endif %}"
+          class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-semibold rounded-xl transition-all shadow-md flex items-center justify-center gap-2">
           <template x-if="!isDownloading">
             <span>⬇️ Download Selected</span>
           </template>
@@ -25,6 +26,15 @@
             </svg>
           </template>
         </button>
+
+        {% if not active_subscription or active_subscription.package.name == PACKAGE_FREE %}
+          <div class="text-center text-red-500 font-semibold text-sm mt-2">
+            🚫 Downloads available only for Premium users.
+            <a href="{% url 'subscriptions:subscription' %}" class="text-blue-600 hover:underline ml-1">
+              Upgrade Now →
+            </a>
+          </div>
+        {% endif %}
       </div>
     </div>
 
@@ -163,18 +173,26 @@
             <!-- CSV -->
             <td class="px-4 py-3">
               {% if entry.csv_url %}
-                <a href="{{ entry.csv_url }}" class="text-blue-600 hover:underline" download>Download</a>
+                {% if active_subscription and active_subscription.package.name != PACKAGE_FREE %}
+                  <a href="{{ entry.csv_url }}" class="text-blue-600 hover:underline" download>Download</a>
+                {% else %}
+                  <span class="text-gray-400 italic">Restricted</span>
+                {% endif %}
               {% else %}
                 <span class="text-gray-400 italic">No File</span>
               {% endif %}
             </td>
-        
+
             <!-- PNG -->
             <td class="px-4 py-3">
               {% if entry.png_url %}
-                <a href="{{ entry.png_url }}" target="_blank">
-                  <img src="{{ entry.png_url }}" alt="PNG Preview" class="w-16 h-auto rounded shadow hover:scale-105 transition-transform duration-200">
-                </a>
+                {% if active_subscription and active_subscription.package.name != PACKAGE_FREE %}
+                  <a href="{{ entry.png_url }}" target="_blank">
+                    <img src="{{ entry.png_url }}" alt="PNG Preview" class="w-16 h-auto rounded shadow hover:scale-105 transition-transform duration-200">
+                  </a>
+                {% else %}
+                  <img src="{{ entry.png_url }}" alt="PNG Preview" class="w-16 h-auto rounded shadow opacity-50 cursor-not-allowed">
+                {% endif %}
               {% else %}
                 <span class="text-gray-400 italic">No Image</span>
               {% endif %}
@@ -183,7 +201,11 @@
             <!-- TIFF -->
             <td class="px-4 py-3">
               {% if entry.tiff_url %}
-                <a href="{{ entry.tiff_url }}" class="text-blue-600 hover:underline" download>Download</a>
+                {% if active_subscription and active_subscription.package.name != PACKAGE_FREE %}
+                  <a href="{{ entry.tiff_url }}" class="text-blue-600 hover:underline" download>Download</a>
+                {% else %}
+                  <span class="text-gray-400 italic">Restricted</span>
+                {% endif %}
               {% else %}
                 <span class="text-gray-400 italic">No File</span>
               {% endif %}

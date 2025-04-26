@@ -19,13 +19,19 @@
               <span class="font-medium">{{ active_subscription.status }}</span> — 
               Expires: {{ active_subscription.expiry_date|date:"Y-m-d h:i A" }}
             </p>
+            {% if is_pending_cancellation %}
+              <div class="mt-3 p-3 bg-yellow-100 dark:bg-yellow-800 text-yellow-900 dark:text-yellow-100 rounded-lg text-sm font-medium">
+                ⚠️ Your subscription will cancel automatically on {{ active_subscription.expiry_date|date:"Y-m-d" }}.
+              </div>
+            {% endif %}
           </div>
           <form method="POST" action="{% url 'subscriptions:customer' %}">
             {% csrf_token %}
+            <input type="hidden" name="subscription_id" value="{{ active_subscription.stripe_subscription_id }}">
             <button type="submit" class="text-sm bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg transition">
               Manage Billing
             </button>
-          </form>
+          </form>          
         </div>
       {% else %}
         <div class="bg-yellow-100 dark:bg-yellow-800 text-yellow-900 dark:text-yellow-100 p-4 rounded-lg shadow">
@@ -37,18 +43,19 @@
 
     <!-- Available Plans -->
     <h2 class="text-xl font-bold text-gray-800 dark:text-white mb-4">📦 Choose a Plan</h2>
-    <form action="{% url 'subscriptions:checkout' %}" method="post" novalidate class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
-      {% csrf_token %}
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
       {% for package in available_packages %}
-        <label class="relative border rounded-lg p-6 cursor-pointer shadow-sm bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white hover:border-blue-500 transition ring-offset-2 focus-within:ring-2 focus-within:ring-blue-500">
-          <input type="radio" name="selected_plan" value="{{ package.stripe_price_id }}" class="absolute top-2 right-2 w-5 h-5 accent-blue-600" aria-label="Select {{ package.name }}" {% if active_subscription and package.id == active_subscription.package.id %}checked{% endif %}>
-          
-          {% if active_subscription and package.id == active_subscription.package.id %}
-            <span class="absolute top-3 left-3 bg-green-600 text-white text-xs font-semibold px-2 py-0.5 rounded">Current</span>
+        <div class="relative border rounded-lg p-6 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm hover:border-blue-500 transition">
+
+          {% if active_subscription and package.id == active_subscription.package.id or not active_subscription and package.name == PACKAGE_FREE %}
+            <span class="absolute top-3 right-3 bg-green-600 text-white text-xs font-semibold p-2 m-4 rounded">Current</span>
           {% endif %}
 
-          <div class="text-lg font-semibold mt-4">{{ package.name }}</div>
+          <!-- Plan Name -->
+          <div class="text-lg font-semibold my-4">{{ package.name }}</div>
 
+          <!-- Plan Description -->
           {% if package.description %}
             <ul class="mt-2 text-sm text-gray-500 dark:text-gray-300 space-y-1 list-disc pl-5">
               {% for item in package.description %}
@@ -59,17 +66,29 @@
             </ul>
           {% endif %}
 
+          <!-- Plan Price -->
           <div class="text-xl font-bold mt-4">RM {{ package.price }}</div>
 
-          {% if package.name != 'Free' %}
+          {% if package.name != PACKAGE_FREE %}
             <div class="text-xs text-gray-400">Duration: {{ package.duration_days }} days</div>
           {% endif %}
-        </label>
+
+          <!-- Upgrade Button -->
+          {% if package.name != PACKAGE_FREE %}
+            {% if not active_subscription or active_subscription and package.id != active_subscription.package.id %}
+              <form method="post" action="{% url 'subscriptions:checkout' %}" class="mt-4">
+                {% csrf_token %}
+                <input type="hidden" name="selected_plan" value="{{ package.stripe_price_id }}">
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold px-6 py-2 rounded-lg transition">
+                  Subscribe / Upgrade
+                </button>
+              </form>
+            {% endif %}
+          {% endif %}
+
+        </div>
       {% endfor %}
-      <div class="md:col-span-2 flex justify-end mt-2">
-        <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white font-semibold px-6 py-2 rounded-lg transition">Subscribe / Upgrade</button>
-      </div>
-    </form>
+    </div>
 
     <!-- History Table -->
     <h2 class="text-xl font-bold text-gray-800 dark:text-white mb-4">📜 Subscription History</h2>
