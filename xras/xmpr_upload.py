@@ -14,16 +14,16 @@ SOURCE_DIR = os.getenv("SOURCE_DIR")
 DESTINATION_DIR = os.getenv("DESTINATION_DIR")
 BUCKET = os.getenv("S3_BUCKET")
 REGION = os.getenv("REGION")
-LOG_FILE = "upload.log"
+LOG_FILE = "xmpr_upload.log"
 
 # PostgreSQL connection
 try:
     conn = psycopg2.connect(
-        host=os.getenv("RDS_HOST"),
-        port=os.getenv("RDS_PORT"),
-        dbname=os.getenv("RDS_DB"),
-        user=os.getenv("RDS_USER"),
-        password=os.getenv("RDS_PASSWORD"),
+        host=os.getenv("DATABASE_HOST"),
+        port=os.getenv("DATABASE_PORT"),
+        dbname=os.getenv("DATABASE_NAME"),
+        user=os.getenv("DATABASE_USER"),
+        password=os.getenv("DATABASE_PASSWORD"),
         options='-c search_path=xras'
     )
 except Exception as e:

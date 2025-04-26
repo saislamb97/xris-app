@@ -156,11 +156,11 @@ LOGOUT_REDIRECT_URL = '/'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('DJANGO_DATABASE_NAME', 'xras'),
-        'USER': os.getenv('DJANGO_DATABASE_USER', 'postgres'),
-        'PASSWORD': os.getenv('DJANGO_DATABASE_PASSWORD', 'postgres'),
-        'HOST': os.getenv('DJANGO_DATABASE_HOST', '127.0.0.1'),
-        'PORT': os.getenv('DJANGO_DATABASE_PORT', '5432'),
+        'NAME': os.getenv('DATABASE_NAME', 'xras'),
+        'USER': os.getenv('DATABASE_USER', 'postgres'),
+        'PASSWORD': os.getenv('DATABASE_PASSWORD', 'postgres'),
+        'HOST': os.getenv('DATABASE_HOST', '127.0.0.1'),
+        'PORT': os.getenv('DATABASE_PORT', '5432'),
         'OPTIONS': {
             'connect_timeout': 10,
         },
@@ -259,8 +259,49 @@ STATICFILES_DIRS = [
     BASE_DIR / "assets",  # if you have custom static assets
 ]
 
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR.parent / 'media'
+# ------------------------------------------------------------------------------
+# MEDIA STORAGE (S3 OR LOCAL)
+# ------------------------------------------------------------------------------
+AWS_STORAGE_BUCKET_NAME = os.getenv('S3_BUCKET')
+AWS_REGION = os.getenv('REGION')
+AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
+AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
+
+USE_S3 = all([
+    AWS_STORAGE_BUCKET_NAME,
+    AWS_REGION,
+    AWS_ACCESS_KEY_ID,
+    AWS_SECRET_ACCESS_KEY
+])
+
+if USE_S3:
+    # Attempt to configure S3
+    try:
+        import boto3
+        from botocore.exceptions import BotoCoreError, ClientError
+
+        s3 = boto3.client(
+            "s3",
+            region_name=AWS_REGION,
+            aws_access_key_id=AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+        )
+        # Check if bucket exists (this is optional but safe)
+        s3.head_bucket(Bucket=AWS_STORAGE_BUCKET_NAME)
+
+        DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+
+        AWS_S3_CUSTOM_DOMAIN = f"{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_REGION}.amazonaws.com"
+        MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/"
+
+    except (ImportError, BotoCoreError, ClientError, Exception) as e:
+        print(f"[S3 Warning] Using local media storage instead: {e}")
+        MEDIA_URL = '/media/'
+        MEDIA_ROOT = BASE_DIR.parent / 'media'
+else:
+    # Default: Local media storage
+    MEDIA_URL = '/media/'
+    MEDIA_ROOT = BASE_DIR.parent / 'media'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
