@@ -164,12 +164,23 @@
     <!-- Carousel Controls -->
     <div class="flex items-center justify-center gap-3">
 
+      <!-- First Button -->
+      <button @click="page = 1; loadFrames()"
+        class="w-10 h-10 flex items-center justify-center bg-white hover:bg-blue-100 text-blue-600 rounded-full shadow-md border border-gray-300 disabled:opacity-40 transition"
+        :disabled="page === 1" title="First Page">
+        <!-- Icon: Chevrons Left -->
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7M18 19l-7-7 7-7" />
+        </svg>
+      </button>
+
       <!-- Prev Button -->
       <button @click="prevPage"
         class="w-10 h-10 flex items-center justify-center bg-white hover:bg-blue-100 text-blue-600 rounded-full shadow-md border border-gray-300 disabled:opacity-40 transition"
-        :disabled="page === 1">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+        :disabled="page === 1" title="Previous Page">
+        <!-- Icon: Chevron Left -->
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
         </svg>
       </button>
 
@@ -186,13 +197,25 @@
       <!-- Next Button -->
       <button @click="nextPage"
         class="w-10 h-10 flex items-center justify-center bg-white hover:bg-blue-100 text-blue-600 rounded-full shadow-md border border-gray-300 disabled:opacity-40 transition"
-        :disabled="!hasNextPage">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+        :disabled="!hasNextPage" title="Next Page">
+        <!-- Icon: Chevron Right -->
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+        </svg>
+      </button>
+
+      <!-- Last Button -->
+      <button @click="page = Math.ceil(totalCount / pageSize); loadFrames()"
+        class="w-10 h-10 flex items-center justify-center bg-white hover:bg-blue-100 text-blue-600 rounded-full shadow-md border border-gray-300 disabled:opacity-40 transition"
+        :disabled="page >= Math.ceil(totalCount / pageSize)" title="Last Page">
+        <!-- Icon: Chevrons Right -->
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M6 5l7 7-7 7" />
         </svg>
       </button>
 
     </div>
+
   </div>
 
   <!-- Alpine Logic -->
