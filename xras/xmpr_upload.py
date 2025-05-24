@@ -96,38 +96,50 @@ def insert_record(dt, csv_info, png_info, tiff_info):
 def scan_and_insert_by_file_key():
     file_map = defaultdict(lambda: {'csv': None, 'png': None, 'tiff': None, 'datetime': None})
 
-    for root, _, files in os.walk(SOURCE_DIR):
-        for file in sorted(files):
-            ext = Path(file).suffix.lower()
-            if ext not in ['.csv', '.png', '.tif', '.tiff']:
-                continue
+    # Define specific subdirectories to scan
+    target_dirs = [
+        os.path.join(SOURCE_DIR, "csv"),
+        os.path.join(SOURCE_DIR, "images", "png"),
+        os.path.join(SOURCE_DIR, "images", "tif")
+    ]
 
-            full_path = os.path.join(root, file)
-            rel_path = os.path.relpath(full_path, SOURCE_DIR).replace("\\", "/")
+    for base_dir in target_dirs:
+        if not os.path.isdir(base_dir):
+            log(f"[WARN] Skipping missing directory: {base_dir}")
+            continue
 
-            try:
-                file_size = os.path.getsize(full_path)
-                if file_size == 0:
-                    log(f"[SKIP] Zero size file: {rel_path}")
+        for root, _, files in os.walk(base_dir):
+            for file in sorted(files):
+                ext = Path(file).suffix.lower()
+                if ext not in ['.csv', '.png', '.tif', '.tiff']:
                     continue
-            except Exception as e:
-                log(f"[SKIP] Cannot access: {rel_path} — {e}")
-                continue
 
-            key, dt = get_file_key_and_datetime(file)
-            if not key or not dt:
-                log(f"[SKIP] Filename doesn't match pattern: {file}")
-                continue
+                full_path = os.path.join(root, file)
+                rel_path = os.path.relpath(full_path, SOURCE_DIR).replace("\\", "/")
 
-            file_info = {'path': rel_path, 'size': file_size}
-            file_map[key]['datetime'] = dt
+                try:
+                    file_size = os.path.getsize(full_path)
+                    if file_size == 0:
+                        log(f"[SKIP] Zero size file: {rel_path}")
+                        continue
+                except Exception as e:
+                    log(f"[SKIP] Cannot access: {rel_path} — {e}")
+                    continue
 
-            if ext == '.csv':
-                file_map[key]['csv'] = file_info
-            elif ext == '.png':
-                file_map[key]['png'] = file_info
-            elif ext in ['.tif', '.tiff']:
-                file_map[key]['tiff'] = file_info
+                key, dt = get_file_key_and_datetime(file)
+                if not key or not dt:
+                    log(f"[SKIP] Filename doesn't match pattern: {file}")
+                    continue
+
+                file_info = {'path': rel_path, 'size': file_size}
+                file_map[key]['datetime'] = dt
+
+                if ext == '.csv':
+                    file_map[key]['csv'] = file_info
+                elif ext == '.png':
+                    file_map[key]['png'] = file_info
+                elif ext in ['.tif', '.tiff']:
+                    file_map[key]['tiff'] = file_info
 
     total_inserted = 0
     for key, group in sorted(file_map.items()):
