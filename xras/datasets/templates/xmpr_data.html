@@ -156,43 +156,52 @@
         </a>
       </div>
     </form>
-
+    
     <!-- Analyzer Modal -->
     <div
       x-show="showAnalysisModal"
       x-data="xmprAnalysisModal()"
-      class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50"
+      x-cloak
+      class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center px-4"
     >
       <div
         @click.away="showAnalysisModal = false"
-        class="bg-white dark:bg-gray-900 w-full max-w-6xl mx-4 sm:mx-6 md:mx-auto rounded-2xl p-8 shadow-2xl overflow-y-auto max-h-[90vh]"
+        class="relative w-full max-w-6xl bg-white dark:bg-gray-900 rounded-2xl shadow-2xl overflow-y-auto max-h-[90vh] p-8"
+      >
+
+        <!-- Fullscreen Blur Loading Overlay -->
+        <div
+          x-show="downloading"
+          class="absolute inset-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm flex flex-col items-center justify-center rounded-2xl"
         >
+          <svg class="w-12 h-12 text-rose-600 animate-spin mb-4" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+          </svg>
+          <p class="text-lg font-semibold text-rose-700 dark:text-rose-200">Generating PDF report...</p>
+        </div>
+
+        <!-- Modal Header -->
         <div class="flex items-center justify-between mb-6">
-          <h2 class="text-2xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
+          <h2 class="text-3xl font-extrabold text-gray-800 dark:text-white flex items-center gap-2">
             📈 XMPR Rainfall Dashboard
           </h2>
           
-          <button
-            @click="downloadPdfReport"
-            class="px-4 py-2 flex items-center gap-2 bg-rose-600 hover:bg-rose-500 text-white text-sm font-medium rounded-lg shadow"
-            :disabled="downloading"
-          >
-            <template x-if="!downloading">
-              <span>🖨️ Download PDF</span>
-            </template>
-            <template x-if="downloading">
-              <svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="white" stroke-width="4" />
-                <path class="opacity-75" fill="white" d="M4 12a8 8 0 018-8v8H4z" />
-              </svg>
-            </template>
-          </button>
+          <template x-if="!isAnalyzing">
+            <button
+              @click="downloadPdfReport"
+              :disabled="downloading"
+              class="inline-flex items-center gap-2 px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white text-sm font-semibold rounded-lg shadow disabled:opacity-60"
+            >
+              <span x-show="!downloading">🖨️ Download PDF</span>
+            </button>
+          </template>
 
         </div>
 
-        <!-- Loading -->
+        <!-- Loading Message -->
         <template x-if="!analysisResult">
-          <div class="text-center py-10 text-gray-400 dark:text-gray-500 text-lg">
+          <div class="py-20 text-center text-gray-400 dark:text-gray-500 text-lg">
             ⏳ Analyzing selected rainfall data...
           </div>
         </template>
@@ -200,30 +209,28 @@
         <!-- Dashboard Content -->
         <div id="pdf-report-content" class="space-y-10" x-show="analysisResult">
 
-          <!-- Summary -->
+          <!-- Summary Section -->
           <div class="bg-gray-100 dark:bg-gray-800 p-6 rounded-xl shadow-md">
             <h3 class="text-lg font-semibold text-gray-800 dark:text-white mb-4">📄 Summary</h3>
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm text-gray-700 dark:text-gray-300">
               <div class="bg-white dark:bg-gray-900 p-4 rounded-lg shadow-inner">
-                <div class="text-gray-500 text-xs mb-1">Total Files</div>
+                <div class="text-xs text-gray-500">Total Files</div>
                 <div class="text-xl font-bold text-indigo-600 dark:text-indigo-400" x-text="analysisResult.summary.total_files"></div>
               </div>
               <div class="bg-white dark:bg-gray-900 p-4 rounded-lg shadow-inner">
-                <div class="text-gray-500 text-xs mb-1">Total Size</div>
+                <div class="text-xs text-gray-500">Total Size</div>
                 <div class="text-xl font-bold text-emerald-600 dark:text-emerald-400" x-text="(analysisResult.summary.total_size_bytes / (1024*1024)).toFixed(2) + ' MB'"></div>
               </div>
               <div class="bg-white dark:bg-gray-900 p-4 rounded-lg shadow-inner">
-                <div class="text-gray-500 text-xs mb-1">Avg. File Size</div>
+                <div class="text-xs text-gray-500">Avg. File Size</div>
                 <div class="text-xl font-bold text-yellow-600 dark:text-yellow-400" x-text="(analysisResult.summary.average_file_size_bytes / 1024).toFixed(2) + ' KB'"></div>
               </div>
             </div>
           </div>
 
-          <!-- Rainfall Intensity Legend -->
-          <div class="sticky top-0 z-10 bg-white dark:bg-gray-900 pt-4 pb-2 shadow-md rounded-b-xl">
-            <h4 class="text-sm font-semibold text-center text-gray-800 dark:text-gray-100 mb-2">
-              🌧️ Rainfall Intensity (mm/h)
-            </h4>
+          <!-- Rainfall Legend -->
+          <div class="bg-white dark:bg-gray-900 sticky top-0 z-10 pt-4 pb-2 rounded-b-xl shadow-md">
+            <h4 class="text-sm font-semibold text-center text-gray-800 dark:text-white mb-2">🌧️ Rainfall Intensity (mm/h)</h4>
             <div class="flex justify-center items-end gap-4 flex-wrap">
               <template x-for="level in rainfallLegend" :key="level.value">
                 <div class="flex flex-col items-center">
@@ -234,21 +241,15 @@
             </div>
           </div>
 
-          <!-- File Reports + Heatmap -->
+          <!-- File Reports -->
           <div class="space-y-8">
             <template x-for="file in analysisResult.data" :key="file.file">
               <div class="p-6 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl shadow space-y-4">
                 <h4 class="text-md font-semibold text-blue-600 dark:text-blue-400 break-all">
-                  <a
-                    :href="`/media/${file.file}`"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    x-text="file.file"
-                    class="hover:underline"
-                  ></a>
+                  <a :href="`/media/${file.file}`" target="_blank" rel="noopener noreferrer" x-text="file.file" class="hover:underline"></a>
                 </h4>
 
-                <!-- Stats -->
+                <!-- Metrics -->
                 <div class="grid grid-cols-2 sm:grid-cols-3 gap-y-2 text-sm text-gray-700 dark:text-gray-300">
                   <div><strong>Shape:</strong> <span x-text="file.shape"></span></div>
                   <div><strong>Min:</strong> <span x-text="file.min?.toFixed(2)"></span></div>
@@ -258,10 +259,50 @@
                   <div><strong>Non-zero %:</strong> <span x-text="file.nonzero_percent?.toFixed(1) + '%'"></span></div>
                 </div>
 
+                <!-- Insights -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4 text-sm text-gray-700 dark:text-gray-300">
+                  <div class="bg-indigo-50 dark:bg-indigo-900/30 px-4 py-2 rounded-lg border border-indigo-300 dark:border-indigo-700">
+                    <div class="text-xs text-indigo-500 dark:text-indigo-300">🌧️ Rainfall Class</div>
+                    <div class="font-bold text-indigo-700 dark:text-indigo-200 italic" x-text="file.rain_class"></div>
+                  </div>
+                  <div class="bg-yellow-50 dark:bg-yellow-900/30 px-4 py-2 rounded-lg border border-yellow-300 dark:border-yellow-700">
+                    <div class="text-xs text-yellow-500 dark:text-yellow-300">⚠️ Extreme Zone (%)</div>
+                    <div class="font-bold text-yellow-700 dark:text-yellow-200 flex gap-2 items-center">
+                      <span x-text="file.extreme_zone_percent?.value.toFixed(1) + '%'"></span>
+                      <span class="text-xs font-normal text-yellow-600 dark:text-yellow-300 italic" x-text="file.extreme_zone_percent?.comment"></span>
+                    </div>
+                  </div>
+                  <div class="bg-rose-50 dark:bg-rose-900/30 px-4 py-2 rounded-lg border border-rose-300 dark:border-rose-700">
+                    <div class="text-xs text-rose-500 dark:text-rose-300">📢 Decision</div>
+                    <div class="font-bold text-rose-700 dark:text-rose-200 italic" x-text="file.decision"></div>
+                  </div>
+                </div>
+
+                <!-- Rainfall Distribution -->
+                <template x-if="file.rain_distribution">
+                  <div x-ref="rainDist" class="mt-4" :class="{ 'hidden': skipRainDist }">
+                    <h5 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">🌈 Rainfall Distribution</h5>
+                    <div class="flex flex-col gap-1">
+                      <template x-for="(percent, label) in file.rain_distribution" :key="label">
+                        <div class="flex items-center gap-2 text-xs">
+                          <div class="w-24 text-right text-gray-500 dark:text-gray-400" x-text="label"></div>
+                          <div class="flex-1 h-3 rounded bg-gray-200 dark:bg-gray-700 overflow-hidden relative">
+                            <div
+                              class="h-full rounded bg-gradient-to-r from-sky-400 to-blue-600 dark:from-sky-700 dark:to-blue-900"
+                              :style="`width: ${Math.max(percent, 0.1)}%;`"
+                            ></div>
+                          </div>
+                          <div class="w-12 text-right font-semibold text-gray-700 dark:text-gray-200" x-text="percent.toFixed(1) + '%'"></div>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+                </template>
+
                 <!-- Heatmap -->
                 <template x-if="file.matrix">
                   <div class="flex flex-col items-center">
-                    <div class="inline-block rounded border border-gray-300 dark:border-gray-700 p-1">
+                    <div class="inline-block rounded border border-gray-300 dark:border-gray-700 p-1 overflow-auto max-w-full">
                       <template x-for="(row, r) in file.matrix.slice(0, 20)" :key="r">
                         <div class="flex">
                           <template x-for="(val, c) in row.slice(0, 50)" :key="c">
@@ -274,15 +315,13 @@
                         </div>
                       </template>
                     </div>
-                    <p class="text-xs text-gray-500 text-center mt-1">
-                      🟦 Top 20×50 rainfall matrix preview
-                    </p>
+                    <p class="text-xs text-gray-500 text-center mt-1">🟦 Top 20×50 rainfall matrix preview</p>
                   </div>
                 </template>
 
                 <!-- Error -->
                 <template x-if="file.error">
-                  <div class="mt-2 text-red-500 text-sm italic" x-text="file.error"></div>
+                  <div class="text-sm text-red-500 italic" x-text="file.error"></div>
                 </template>
               </div>
             </template>
@@ -290,7 +329,7 @@
         </div>
 
         <!-- Close Button -->
-        <div class="mt-6 text-center">
+        <div class="mt-8 text-center">
           <button
             @click="showAnalysisModal = false"
             class="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-700 hover:bg-gray-800 text-white font-semibold rounded-lg shadow transition"
@@ -458,6 +497,8 @@
       showAnalysisModal: false,
       analysisResult: null,
       downloading: false,
+      skipRainDist: false,
+
       rainfallLegend: [
         { value: 1, color: '#f2f2ff' },
         { value: 5, color: '#bfe2f9' },
@@ -567,25 +608,49 @@
       },
 
       downloadPdfReport() {
-        this.downloading = true; // was isGeneratingPdf before
+        this.downloading = true;
+        this.skipRainDist = true;
 
         const el = document.getElementById("pdf-report-content");
-        const { jsPDF } = window.jspdf;
 
-        html2canvas(el, { scale: 2 }).then(canvas => {
-          const pdf = new jsPDF('p', 'mm', 'a4');
-          const imgData = canvas.toDataURL('image/png');
-          const imgProps = pdf.getImageProperties(imgData);
-          const pdfWidth = pdf.internal.pageSize.getWidth();
-          const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+        if (!el) {
+          alert("PDF content not found.");
+          this.downloading = false;
+          return;
+        }
 
-          pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-          pdf.save('xmpr_rainfall_report.pdf');
-          this.downloading = false;
-        }).catch(() => {
-          alert("Failed to generate PDF.");
-          this.downloading = false;
-        });
+        setTimeout(() => {
+          html2canvas(el, { scale: 2, useCORS: true }).then(canvas => {
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new window.jspdf.jsPDF('p', 'mm', 'a4');
+            const pageWidth = pdf.internal.pageSize.getWidth();
+            const pageHeight = pdf.internal.pageSize.getHeight();
+
+            const imgProps = pdf.getImageProperties(imgData);
+            const imgHeight = (imgProps.height * pageWidth) / imgProps.width;
+
+            let heightLeft = imgHeight;
+            let position = 0;
+
+            pdf.addImage(imgData, 'PNG', 0, position, pageWidth, imgHeight);
+            heightLeft -= pageHeight;
+
+            while (heightLeft > 0) {
+              position = heightLeft - imgHeight;
+              pdf.addPage();
+              pdf.addImage(imgData, 'PNG', 0, position, pageWidth, imgHeight);
+              heightLeft -= pageHeight;
+            }
+
+            pdf.save('xmpr_rainfall_report.pdf');
+          }).catch(error => {
+            console.error("PDF generation error:", error);
+            alert("Failed to generate PDF. Please try again.");
+          }).finally(() => {
+            this.skipRainDist = false;
+            this.downloading = false;
+          });
+        }, 500);
       },
 
       formatBytes(bytes) {

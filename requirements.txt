@@ -26,6 +26,7 @@ idna==3.10
 incremental==24.7.2
 jmespath==1.0.1
 msgpack==1.1.0
+numpy==2.2.6
 pillow==11.2.1
 promise==2.3
 psycopg2-binary==2.9.10

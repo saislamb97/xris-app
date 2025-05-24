@@ -1,11 +1,12 @@
 import os
+import re
 import psycopg2
 from datetime import datetime
 from dotenv import load_dotenv
 from pathlib import Path
 from collections import defaultdict
 
-# Load environment variables
+# --- Load environment variables ---
 load_dotenv()
 
 # --- Configuration ---
@@ -33,18 +34,22 @@ def log(msg):
     with open(LOG_FILE, "a", encoding="utf-8") as f:
         f.write(f"{datetime.now().isoformat()} - {msg}\n")
 
-# --- Extract date from path folder ---
-def get_date_from_path(path):
-    parts = Path(path).parts
-    for i in range(len(parts) - 3):
+missing_entries = []
+
+# --- Extract strict file key from filename ---
+def get_file_key_and_datetime(path):
+    filename = Path(path).name
+    pattern = re.compile(r"(?P<key>\d{8}_\d{6}_[^_]+_\d{3})\.(csv|png|tif|tiff)", re.IGNORECASE)
+    match = pattern.match(filename)
+    if match:
+        key = match.group("key")
         try:
-            yyyy = int(parts[i])
-            mm = int(parts[i + 1])
-            dd = int(parts[i + 2])
-            return f"{yyyy:04d}-{mm:02d}-{dd:02d}"
-        except Exception:
-            continue
-    return None
+            dt_part = "_".join(key.split("_")[:2])
+            dt = datetime.strptime(dt_part, "%Y%m%d_%H%M%S")
+            return key, dt
+        except ValueError:
+            return None, None
+    return None, None
 
 # --- Check if file already in DB ---
 def is_file_uploaded(rel_path):
@@ -56,28 +61,18 @@ def is_file_uploaded(rel_path):
         """, (rel_path, rel_path, rel_path))
         return cur.fetchone() is not None
 
-# --- Insert one row ---
-def insert_record(date, csv_info=None, png_info=None, tiff_info=None):
-    files_present = sum([
-        1 if csv_info else 0,
-        1 if png_info else 0,
-        1 if tiff_info else 0
-    ])
+# --- Insert record ---
+def insert_record(dt, csv_info, png_info, tiff_info):
+    csv_path = csv_info['path']
+    png_path = png_info['path']
+    tiff_path = tiff_info['path']
 
-    if files_present < 2:
-        log(f"[SKIP] Only {files_present} file(s) found for {date}. Minimum 2 required.")
-        return
-
-    csv_path = csv_info['path'] if csv_info else None
-    png_path = png_info['path'] if png_info else None
-    tiff_path = tiff_info['path'] if tiff_info else None
-
-    if any(is_file_uploaded(p) for p in [csv_path, png_path, tiff_path] if p):
-        log(f"[SKIP] Already uploaded — CSV: {csv_path}, PNG: {png_path}, TIFF: {tiff_path}")
+    if any(is_file_uploaded(p) for p in [csv_path, png_path, tiff_path]):
+        log(f"[SKIP] Already in DB → {csv_path}")
         return
 
     if DRY_RUN:
-        log(f"[DRY-RUN] Would insert {date} → CSV: {csv_path}, PNG: {png_path}, TIFF: {tiff_path}")
+        log(f"[DRY-RUN] Would insert: {csv_path}, {png_path}, {tiff_path}")
         return
 
     with conn.cursor() as cur:
@@ -86,20 +81,20 @@ def insert_record(date, csv_info=None, png_info=None, tiff_info=None):
                 time, csv, png, tiff, csv_size, png_size, tiff_size, created_at, updated_at
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, now(), now())
         """, (
-            datetime.strptime(date, '%Y-%m-%d'),
+            dt,
             csv_path,
             png_path,
             tiff_path,
-            csv_info['size'] if csv_info else 0,
-            png_info['size'] if png_info else 0,
-            tiff_info['size'] if tiff_info else 0
+            csv_info['size'],
+            png_info['size'],
+            tiff_info['size']
         ))
         conn.commit()
-        log(f"[INSERTED] {date} → CSV: {csv_path}, PNG: {png_path}, TIFF: {tiff_path}")
+        log(f"[INSERTED] {dt} → {csv_path}")
 
-# --- Main logic: scan all files and group by date ---
-def scan_and_insert_by_date():
-    file_map = defaultdict(lambda: {'csv': [], 'png': [], 'tiff': []})
+# --- Main processing function ---
+def scan_and_insert_by_file_key():
+    file_map = defaultdict(lambda: {'csv': None, 'png': None, 'tiff': None, 'datetime': None})
 
     for root, _, files in os.walk(SOURCE_DIR):
         for file in sorted(files):
@@ -108,50 +103,49 @@ def scan_and_insert_by_date():
                 continue
 
             full_path = os.path.join(root, file)
-            if not os.path.exists(full_path):
-                continue
+            rel_path = os.path.relpath(full_path, SOURCE_DIR).replace("\\", "/")
 
             try:
                 file_size = os.path.getsize(full_path)
+                if file_size == 0:
+                    log(f"[SKIP] Zero size file: {rel_path}")
+                    continue
             except Exception as e:
-                log(f"[SKIP] Cannot read size: {full_path} — {e}")
+                log(f"[SKIP] Cannot access: {rel_path} — {e}")
                 continue
 
-            if file_size == 0:
-                log(f"[SKIP] Zero size file: {full_path}")
+            key, dt = get_file_key_and_datetime(file)
+            if not key or not dt:
+                log(f"[SKIP] Filename doesn't match pattern: {file}")
                 continue
 
-            date = get_date_from_path(full_path)
-            if not date:
-                log(f"[SKIP] Cannot determine date: {full_path}")
-                continue
-
-            rel_path = os.path.relpath(full_path, SOURCE_DIR).replace("\\", "/")
             file_info = {'path': rel_path, 'size': file_size}
+            file_map[key]['datetime'] = dt
 
             if ext == '.csv':
-                file_map[date]['csv'].append(file_info)
+                file_map[key]['csv'] = file_info
             elif ext == '.png':
-                file_map[date]['png'].append(file_info)
+                file_map[key]['png'] = file_info
             elif ext in ['.tif', '.tiff']:
-                file_map[date]['tiff'].append(file_info)
+                file_map[key]['tiff'] = file_info
 
     total_inserted = 0
-    for date, group in sorted(file_map.items()):
-        max_len = max(len(group['csv']), len(group['png']), len(group['tiff']))
-        for i in range(max_len):
-            csv = group['csv'][i] if i < len(group['csv']) else None
-            png = group['png'][i] if i < len(group['png']) else None
-            tiff = group['tiff'][i] if i < len(group['tiff']) else None
-            insert_record(date, csv_info=csv, png_info=png, tiff_info=tiff)
+    for key, group in sorted(file_map.items()):
+        if group['csv'] and group['png'] and group['tiff']:
+            insert_record(group['datetime'], group['csv'], group['png'], group['tiff'])
             total_inserted += 1
+        else:
+            missing = [ftype.upper() for ftype in ['csv', 'png', 'tiff'] if not group[ftype]]
+            missing_entries.append(f"{key} → missing: {', '.join(missing)}")
 
-    log(f"[DONE] Total records processed: {total_inserted}")
+    log(f"[DONE] Records inserted: {total_inserted}")
+    if missing_entries:
+        log(f"[REPORT] Incomplete file groups:\n" + "\n".join(missing_entries))
 
-# --- Run ---
+# --- Run script ---
 if __name__ == "__main__":
     try:
-        scan_and_insert_by_date()
+        scan_and_insert_by_file_key()
     except Exception as e:
         log(f"[FATAL ERROR] {e}")
     finally:

@@ -128,8 +128,10 @@ def download_xmpr_data(request):
                 if rel_path:
                     full_path = os.path.join(settings.MEDIA_ROOT, rel_path)
                     if os.path.exists(full_path):
-                        arcname = f"{entry.time:%Y/%m/%d}/{ext}/{timestamp}.{ext}"
+                        original_filename = os.path.basename(rel_path)
+                        arcname = f"{entry.time:%Y/%m/%d}/{ext}/{original_filename}"
                         z.write(full_path, arcname)
+
                         XmprDownloadLog.objects.create(
                             xmpr_data=entry,
                             user=user,
@@ -142,6 +144,33 @@ def download_xmpr_data(request):
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
     return response
 
+# Thresholds & Color Labels (from rainfallLegend)
+RAINFALL_THRESHOLDS = [
+    (80, "Extreme"),
+    (50, "Heavy"),
+    (30, "Very High"),
+    (20, "Moderate"),
+    (10, "Mild"),
+    (5,  "Light"),
+    (1,  "Very Light"),
+    (0,  "None"),
+]
+
+def is_float(value):
+    try:
+        float(value)
+        return True
+    except ValueError:
+        return False
+
+def get_rain_zone_comment(percent, label):
+    if percent > 10:
+        return f"\u26a0\ufe0f High {label.lower()} rainfall coverage"
+    elif percent > 5:
+        return f"Noticeable {label.lower()} rainfall"
+    elif percent > 0:
+        return f"Minimal {label.lower()} rainfall"
+    return f"No {label.lower()} rainfall detected"
 
 def read_and_analyze_csv(path):
     try:
@@ -150,14 +179,17 @@ def read_and_analyze_csv(path):
             lines = f.readlines()
 
         metadata = {}
-        matrix, max_len = [], 0
+        matrix = []
+        max_len = 0
 
         for line in lines[:10]:
             parts = [x.strip() for x in line.split(",") if x.strip()]
+            if not parts:
+                continue
             try:
                 if "/" in parts[0] and ":" not in parts[0]:
                     metadata["datetime"] = parts[0]
-                elif len(parts) == 1:
+                elif len(parts) == 1 and is_float(parts[0]):
                     val = float(parts[0])
                     for key in ["lat", "lon", "alt"]:
                         if key not in metadata:
@@ -168,35 +200,81 @@ def read_and_analyze_csv(path):
 
         for line in lines:
             try:
-                row = [float(x) for x in line.strip().split(",") if x]
+                row = [float(x) for x in line.strip().split(",") if is_float(x)]
                 if row:
                     max_len = max(max_len, len(row))
                     matrix.append(row)
             except:
                 continue
 
+        if not matrix:
+            return {"file": path, "error": "No valid matrix data"}
+
         matrix = [r + [0.0] * (max_len - len(r)) for r in matrix]
         arr = np.array(matrix)
 
-        if arr.size == 0:
-            return {"file": path, "error": "Empty matrix"}
+        arr_min = float(np.min(arr))
+        arr_max = float(np.max(arr))
+        arr_mean = float(np.mean(arr))
+        arr_std = float(np.std(arr))
+        nonzero_count = int(np.count_nonzero(arr))
+        nonzero_percent = round(nonzero_count / arr.size * 100, 2)
+
+        total_cells = arr.size
+        rain_distribution = {}
+        for i, (threshold, label) in enumerate(RAINFALL_THRESHOLDS):
+            upper = RAINFALL_THRESHOLDS[i - 1][0] if i > 0 else float('inf')
+            mask = (arr >= threshold) & (arr < upper)
+            rain_distribution[label] = round(np.count_nonzero(mask) / total_cells * 100, 2)
+
+        extreme_percent = rain_distribution.get("Extreme", 0.0)
+        heavy_percent = rain_distribution.get("Heavy", 0.0)
+
+        if arr_mean >= 80:
+            rain_class = "Extreme"
+        elif arr_mean >= 50:
+            rain_class = "Heavy"
+        elif arr_mean >= 20:
+            rain_class = "Moderate"
+        elif arr_mean >= 1:
+            rain_class = "Light"
+        else:
+            rain_class = "None"
+
+        if arr_max > 100 and extreme_percent > 10:
+            decision = "\ud83d\uded8 Extreme rainfall alert"
+        elif extreme_percent + heavy_percent > 10:
+            decision = "\u26a0\ufe0f Significant rainfall detected"
+        elif arr_max >= 5:
+            decision = "\u2614\ufe0f Some rainfall observed"
+        else:
+            decision = "\u2705 No significant rainfall"
+
+        preview = arr[::max(1, len(arr)//20)][:20, ::max(1, arr.shape[1]//50)][:, :50].tolist()
 
         return {
             **metadata,
             "file": path,
             "shape": arr.shape,
-            "min": float(np.min(arr)),
-            "max": float(np.max(arr)),
-            "mean": float(np.mean(arr)),
-            "std": float(np.std(arr)),
-            "nonzero_count": int(np.count_nonzero(arr)),
-            "nonzero_percent": round(np.count_nonzero(arr) / arr.size * 100, 2),
-            "matrix": arr.tolist(),  # ✅ Add this line to enable heatmap rendering
+            "min": arr_min,
+            "max": arr_max,
+            "mean": arr_mean,
+            "std": arr_std,
+            "nonzero_count": nonzero_count,
+            "nonzero_percent": nonzero_percent,
+            "extreme_zone_percent": {
+                "value": extreme_percent,
+                "comment": get_rain_zone_comment(extreme_percent, "Extreme")
+            },
+            "rain_class": rain_class,
+            "decision": decision,
+            "rain_distribution": rain_distribution,
+            "matrix": arr.tolist(),          # full matrix
+            "preview": preview               # keep preview for default display
         }
 
     except Exception as e:
         return {"file": path, "error": str(e)}
-
 
 @csrf_exempt
 @login_required
@@ -209,15 +287,18 @@ def analyze_xmpr_data(request):
             return JsonResponse({'error': 'No IDs provided'}, status=400)
 
         entries = XmprData.objects.filter(id__in=ids)
-        results, total_files, total_bytes = [], 0, 0
+        results = []
+        total_files, total_bytes = 0, 0
 
         for entry in entries:
             if entry.csv:
-                results.append(read_and_analyze_csv(entry.csv))
+                analysis = read_and_analyze_csv(entry.csv)
+                results.append(analysis)
                 total_files += 1
-                total_bytes += entry.csv_size
+                total_bytes += entry.csv_size or 0
 
         avg_size = total_bytes / total_files if total_files else 0
+        total_size_mb = round(total_bytes / (1024 ** 2), 2)
 
         return JsonResponse({
             'data': results,
@@ -225,8 +306,8 @@ def analyze_xmpr_data(request):
                 'total_files': total_files,
                 'total_size_bytes': total_bytes,
                 'average_file_size_bytes': avg_size,
-                'total_size_mb': round(total_bytes / (1024 ** 2), 2),
-                'message': f"{total_files} files analyzed ({total_bytes / (1024**2):.2f} MB)"
+                'total_size_mb': total_size_mb,
+                'message': f"{total_files} file(s) analyzed ({total_size_mb:.2f} MB)"
             }
         })
 
