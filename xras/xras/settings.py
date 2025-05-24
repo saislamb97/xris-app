@@ -16,23 +16,21 @@ from dotenv import load_dotenv
 from datetime import timedelta
 from urllib.parse import urlparse
 
-# ------------------------------------------------------------------------------
-# Load environment variables
-# ------------------------------------------------------------------------------
-load_dotenv()
+# ------------------------------------------------------------------------------  
+# BASE DIRECTORY & CORE SETTINGS  
+# ------------------------------------------------------------------------------  
+BASE_DIR = Path(__file__).resolve().parent.parent  
+  
+# ------------------------------------------------------------------------------  
+# Load environment variables  
+# ------------------------------------------------------------------------------  
+load_dotenv(dotenv_path=Path(BASE_DIR) / '.env')  
+  
+DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 'yes')
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
-BASE_DIR = Path(__file__).resolve().parent.parent
-
-
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
-
-# SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'insecure-secret-key-for-dev')
-DEBUG = os.getenv('DEBUG', 'True').lower() in ['true', '1', 'yes']
-
 HOST_URL = os.getenv('HOST_URL', 'http://127.0.0.1:8000')
+
 # --- Parse domain only ---
 parsed_host = urlparse(HOST_URL).hostname or '127.0.0.1'
 
@@ -45,29 +43,14 @@ ALLOWED_HOSTS = [
 ]
 
 CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:8000",
     "http://127.0.0.1:8000",
-    "http://127.0.0.1:8080",
-    HOST_URL,
+    f"{HOST_URL}",
 ]
 
-# Production-specific security settings
-if not DEBUG:
-    SECURE_HSTS_SECONDS = int(os.getenv('SECURE_HSTS_SECONDS', 3600))
-    SECURE_HSTS_INCLUDE_SUBDOMAINS = os.getenv('SECURE_HSTS_INCLUDE_SUBDOMAINS', 'True').lower() in ['true', '1', 'yes']
-    SECURE_HSTS_PRELOAD = os.getenv('SECURE_HSTS_PRELOAD', 'True').lower() in ['true', '1', 'yes']
-    SECURE_SSL_REDIRECT = os.getenv('SECURE_SSL_REDIRECT', 'True').lower() in ['true', '1', 'yes']
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
-    SECURE_BROWSER_XSS_FILTER = True
-    SECURE_CONTENT_TYPE_NOSNIFF = True
-else:
-    SECURE_HSTS_SECONDS = 0
-
-SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 X_FRAME_OPTIONS = 'DENY'
 
 # Application definition
-
 INSTALLED_APPS = [
     'daphne',
     'django_daisy',
@@ -259,49 +242,8 @@ STATICFILES_DIRS = [
     BASE_DIR / "assets",  # if you have custom static assets
 ]
 
-# ------------------------------------------------------------------------------
-# MEDIA STORAGE (S3 OR LOCAL)
-# ------------------------------------------------------------------------------
-AWS_STORAGE_BUCKET_NAME = os.getenv('S3_BUCKET')
-AWS_REGION = os.getenv('REGION')
-AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
-AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
-
-USE_S3 = all([
-    AWS_STORAGE_BUCKET_NAME,
-    AWS_REGION,
-    AWS_ACCESS_KEY_ID,
-    AWS_SECRET_ACCESS_KEY
-])
-
-if USE_S3:
-    # Attempt to configure S3
-    try:
-        import boto3
-        from botocore.exceptions import BotoCoreError, ClientError
-
-        s3 = boto3.client(
-            "s3",
-            region_name=AWS_REGION,
-            aws_access_key_id=AWS_ACCESS_KEY_ID,
-            aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
-        )
-        # Check if bucket exists (this is optional but safe)
-        s3.head_bucket(Bucket=AWS_STORAGE_BUCKET_NAME)
-
-        DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
-
-        AWS_S3_CUSTOM_DOMAIN = f"{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_REGION}.amazonaws.com"
-        MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/"
-
-    except (ImportError, BotoCoreError, ClientError, Exception) as e:
-        print(f"[S3 Warning] Using local media storage instead: {e}")
-        MEDIA_URL = '/media/'
-        MEDIA_ROOT = BASE_DIR.parent / 'media'
-else:
-    # Default: Local media storage
-    MEDIA_URL = '/media/'
-    MEDIA_ROOT = BASE_DIR.parent / 'media'
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR.parent / 'RadarPagoh'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field

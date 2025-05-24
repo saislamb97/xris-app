@@ -11,6 +11,7 @@ from datasets.models import XmprData, XmprDownloadLog
 from subscriptions.models import Subscription, SubscriptionPackage
 from .forms import ProfileForm
 from django.db.models import Count, Q, Sum
+from django.db.models.functions import Coalesce
 from django.core.paginator import Paginator
 
 
@@ -28,7 +29,7 @@ def home(request):
     # --- Recent activity logs ---
     logs = LogEntry.objects.filter(user=user).order_by('-action_time')[:5]
 
-    # --- XMPR data: entries where at least one file exists and size > 0 ---
+    # --- XMPR data count ---
     qs = XmprData.objects.filter(
         Q(csv__isnull=False, csv_size__gt=0) |
         Q(png__isnull=False, png_size__gt=0) |
@@ -36,45 +37,53 @@ def home(request):
     )
     xmpr_count = qs.count()
 
-    # --- Download statistics ---
-    download_count = XmprDownloadLog.objects.count()
+    # --- Download statistics (for current user only) ---
+    user_downloads = XmprDownloadLog.objects.filter(user=user)
 
-    # Sum total download size (optimized with select_related)
-    total_downloaded_size = (XmprDownloadLog.objects
-                             .select_related('xmpr_data')
-                             .aggregate(total=Sum('xmpr_data__csv_size') + 
-                                              Sum('xmpr_data__png_size') +
-                                              Sum('xmpr_data__tiff_size'))['total']) or 0
+    download_count = user_downloads.count()
 
-    # --- Recent uploads/downloads ---
+    downloaded_size_agg = user_downloads.select_related('xmpr_data').aggregate(
+        csv=Coalesce(Sum('xmpr_data__csv_size'), 0),
+        png=Coalesce(Sum('xmpr_data__png_size'), 0),
+        tiff=Coalesce(Sum('xmpr_data__tiff_size'), 0),
+    )
+    total_downloaded_size = (
+        downloaded_size_agg['csv'] +
+        downloaded_size_agg['png'] +
+        downloaded_size_agg['tiff']
+    )
+
+    # --- Recent uploads and user downloads ---
     recent_uploads = XmprData.objects.order_by('-created_at')[:5]
-    recent_downloads = XmprDownloadLog.objects.select_related('xmpr_data').order_by('-downloaded_at')[:5]
+    recent_downloads = user_downloads.select_related('xmpr_data').order_by('-downloaded_at')[:5]
 
     # --- Downloads in the last 7 days ---
     last_7_days = now() - timedelta(days=7)
-    downloads_7 = (XmprDownloadLog.objects
-                   .filter(downloaded_at__gte=last_7_days)
-                   .extra({'day': "date(downloaded_at)"})
-                   .values('day')
-                   .annotate(count=Count('id'))
-                   .order_by('day'))
-
+    downloads_7 = (
+        user_downloads
+        .filter(downloaded_at__gte=last_7_days)
+        .extra({'day': "date(downloaded_at)"})
+        .values('day')
+        .annotate(count=Count('id'))
+        .order_by('day')
+    )
     chart_labels_7 = [entry['day'].strftime('%Y-%m-%d') for entry in downloads_7]
     chart_data_7 = [entry['count'] for entry in downloads_7]
 
     # --- Downloads in the last 30 days ---
     last_30_days = now() - timedelta(days=30)
-    downloads_30 = (XmprDownloadLog.objects
-                    .filter(downloaded_at__gte=last_30_days)
-                    .extra({'day': "date(downloaded_at)"})
-                    .values('day')
-                    .annotate(count=Count('id'))
-                    .order_by('day'))
-
+    downloads_30 = (
+        user_downloads
+        .filter(downloaded_at__gte=last_30_days)
+        .extra({'day': "date(downloaded_at)"})
+        .values('day')
+        .annotate(count=Count('id'))
+        .order_by('day')
+    )
     chart_labels_30 = [entry['day'].strftime('%Y-%m-%d') for entry in downloads_30]
     chart_data_30 = [entry['count'] for entry in downloads_30]
 
-    # --- Active Subscription Only ---
+    # --- Active subscription ---
     active_subscription = Subscription.objects.filter(user=user, status=Subscription.STATUS_ACTIVE).first()
 
     return render(request, 'home.html', {
@@ -89,9 +98,8 @@ def home(request):
         'chart_labels_30': chart_labels_30,
         'chart_data_30': chart_data_30,
         'active_subscription': active_subscription,
-        'PACKAGE_FREE': SubscriptionPackage.PACKAGE_FREE,  # pass it
+        'PACKAGE_FREE': SubscriptionPackage.PACKAGE_FREE,
     })
-
 
 @login_required
 @verified_email_required

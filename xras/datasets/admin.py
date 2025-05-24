@@ -1,7 +1,6 @@
 from django.contrib import admin
 from django.utils.html import format_html
 from .models import XmprData, XmprDownloadLog
-import os
 
 
 class XmprDownloadLogInline(admin.TabularInline):
@@ -24,7 +23,10 @@ class XmprDataAdmin(admin.ModelAdmin):
     list_filter = ('time', 'created_at', 'updated_at')
     search_fields = ('time',)
     ordering = ('-time',)
-    readonly_fields = ('created_at', 'updated_at', 'preview_png', 'download_tiff', 'download_csv')
+    readonly_fields = (
+        'created_at', 'updated_at', 'preview_png',
+        'download_tiff', 'download_csv'
+    )
     inlines = [XmprDownloadLogInline]
 
     def file_size(self, obj):
@@ -34,9 +36,9 @@ class XmprDataAdmin(admin.ModelAdmin):
     def download_csv(self, obj):
         if obj.csv_url:
             return format_html(
-                '<a href="{}" target="_blank" download '
-                'class="inline-block px-3 py-1 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded">'
-                'Download CSV</a>',
+                '<a href="{}" target="_blank" download title="Download CSV file">'
+                '<span class="inline-block px-3 py-1 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded">'
+                'Download CSV</span></a>',
                 obj.csv_url
             )
         return format_html('<span style="color:gray;">No CSV</span>')
@@ -45,9 +47,9 @@ class XmprDataAdmin(admin.ModelAdmin):
     def download_tiff(self, obj):
         if obj.tiff_url:
             return format_html(
-                '<a href="{}" target="_blank" download '
-                'class="inline-block px-3 py-1 text-sm font-semibold text-white bg-amber-600 hover:bg-amber-500 rounded">'
-                'Download TIFF</a>',
+                '<a href="{}" target="_blank" download title="Download TIFF file">'
+                '<span class="inline-block px-3 py-1 text-sm font-semibold text-white bg-amber-600 hover:bg-amber-500 rounded">'
+                'Download TIFF</span></a>',
                 obj.tiff_url
             )
         return format_html('<span style="color:gray;">No TIFF</span>')
@@ -56,8 +58,8 @@ class XmprDataAdmin(admin.ModelAdmin):
     def preview_png(self, obj):
         if obj.png_url:
             return format_html(
-                '<a href="{}" target="_blank">'
-                '<img src="{}" width="60" style="border-radius:4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">'
+                '<a href="{}" target="_blank" title="Preview PNG">'
+                '<img src="{}" width="60" style="border-radius:4px; box-shadow:0 2px 4px rgba(0,0,0,0.1); margin:2px;">'
                 '</a>',
                 obj.png_url,
                 obj.png_url
@@ -78,7 +80,7 @@ class XmprDownloadLogAdmin(admin.ModelAdmin):
 
     def xmpr_data_link(self, obj):
         return format_html(
-            '<a href="/admin/dataset/xmprdata/{}/change/">{}</a>',
+            '<a href="/admin/dataset/xmprdata/{}/change/" title="View XmprData record">{}</a>',
             obj.xmpr_data.id,
             f"XmprData {obj.xmpr_data.time.strftime('%Y-%m-%d %H:%M:%S')}"
         )

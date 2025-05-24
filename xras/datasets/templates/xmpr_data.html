@@ -27,6 +27,21 @@
           </template>
         </button>
 
+        <button
+          @click="analyzeSelected"
+          :disabled="selected.length == 0 || isAnalyzing {% if not active_subscription or active_subscription.package.name == PACKAGE_FREE %} || true {% endif %}"
+          class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold rounded-xl transition-all shadow-md flex items-center justify-center gap-2">
+          <template x-if="!isAnalyzing">
+            <span>📊 Analyze Selected</span>
+          </template>
+          <template x-if="isAnalyzing">
+            <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+            </svg>
+          </template>
+        </button>
+
         {% if not active_subscription or active_subscription.package.name == PACKAGE_FREE %}
           <div class="text-center text-red-500 font-semibold text-sm mt-2">
             🚫 Downloads available only for Premium users.
@@ -141,6 +156,150 @@
         </a>
       </div>
     </form>
+
+    <!-- Analyzer Modal -->
+    <div
+      x-show="showAnalysisModal"
+      x-data="xmprAnalysisModal()"
+      class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50"
+    >
+      <div
+        @click.away="showAnalysisModal = false"
+        class="bg-white dark:bg-gray-900 w-full max-w-6xl mx-4 sm:mx-6 md:mx-auto rounded-2xl p-8 shadow-2xl overflow-y-auto max-h-[90vh]"
+        >
+        <div class="flex items-center justify-between mb-6">
+          <h2 class="text-2xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
+            📈 XMPR Rainfall Dashboard
+          </h2>
+          
+          <button
+            @click="downloadPdfReport"
+            class="px-4 py-2 flex items-center gap-2 bg-rose-600 hover:bg-rose-500 text-white text-sm font-medium rounded-lg shadow"
+            :disabled="downloading"
+          >
+            <template x-if="!downloading">
+              <span>🖨️ Download PDF</span>
+            </template>
+            <template x-if="downloading">
+              <svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="white" stroke-width="4" />
+                <path class="opacity-75" fill="white" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+            </template>
+          </button>
+
+        </div>
+
+        <!-- Loading -->
+        <template x-if="!analysisResult">
+          <div class="text-center py-10 text-gray-400 dark:text-gray-500 text-lg">
+            ⏳ Analyzing selected rainfall data...
+          </div>
+        </template>
+
+        <!-- Dashboard Content -->
+        <div id="pdf-report-content" class="space-y-10" x-show="analysisResult">
+
+          <!-- Summary -->
+          <div class="bg-gray-100 dark:bg-gray-800 p-6 rounded-xl shadow-md">
+            <h3 class="text-lg font-semibold text-gray-800 dark:text-white mb-4">📄 Summary</h3>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm text-gray-700 dark:text-gray-300">
+              <div class="bg-white dark:bg-gray-900 p-4 rounded-lg shadow-inner">
+                <div class="text-gray-500 text-xs mb-1">Total Files</div>
+                <div class="text-xl font-bold text-indigo-600 dark:text-indigo-400" x-text="analysisResult.summary.total_files"></div>
+              </div>
+              <div class="bg-white dark:bg-gray-900 p-4 rounded-lg shadow-inner">
+                <div class="text-gray-500 text-xs mb-1">Total Size</div>
+                <div class="text-xl font-bold text-emerald-600 dark:text-emerald-400" x-text="(analysisResult.summary.total_size_bytes / (1024*1024)).toFixed(2) + ' MB'"></div>
+              </div>
+              <div class="bg-white dark:bg-gray-900 p-4 rounded-lg shadow-inner">
+                <div class="text-gray-500 text-xs mb-1">Avg. File Size</div>
+                <div class="text-xl font-bold text-yellow-600 dark:text-yellow-400" x-text="(analysisResult.summary.average_file_size_bytes / 1024).toFixed(2) + ' KB'"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Rainfall Intensity Legend -->
+          <div class="sticky top-0 z-10 bg-white dark:bg-gray-900 pt-4 pb-2 shadow-md rounded-b-xl">
+            <h4 class="text-sm font-semibold text-center text-gray-800 dark:text-gray-100 mb-2">
+              🌧️ Rainfall Intensity (mm/h)
+            </h4>
+            <div class="flex justify-center items-end gap-4 flex-wrap">
+              <template x-for="level in rainfallLegend" :key="level.value">
+                <div class="flex flex-col items-center">
+                  <div class="w-8 h-5 rounded border border-gray-400" :style="`background-color: ${level.color}`"></div>
+                  <span class="text-xs text-gray-700 dark:text-gray-300 mt-1" x-text="level.value + ' mm/h'"></span>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <!-- File Reports + Heatmap -->
+          <div class="space-y-8">
+            <template x-for="file in analysisResult.data" :key="file.file">
+              <div class="p-6 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl shadow space-y-4">
+                <h4 class="text-md font-semibold text-blue-600 dark:text-blue-400 break-all">
+                  <a
+                    :href="`/media/${file.file}`"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    x-text="file.file"
+                    class="hover:underline"
+                  ></a>
+                </h4>
+
+                <!-- Stats -->
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-y-2 text-sm text-gray-700 dark:text-gray-300">
+                  <div><strong>Shape:</strong> <span x-text="file.shape"></span></div>
+                  <div><strong>Min:</strong> <span x-text="file.min?.toFixed(2)"></span></div>
+                  <div><strong>Max:</strong> <span x-text="file.max?.toFixed(2)"></span></div>
+                  <div><strong>Mean:</strong> <span x-text="file.mean?.toFixed(2)"></span></div>
+                  <div><strong>Std Dev:</strong> <span x-text="file.std?.toFixed(2)"></span></div>
+                  <div><strong>Non-zero %:</strong> <span x-text="file.nonzero_percent?.toFixed(1) + '%'"></span></div>
+                </div>
+
+                <!-- Heatmap -->
+                <template x-if="file.matrix">
+                  <div class="flex flex-col items-center">
+                    <div class="inline-block rounded border border-gray-300 dark:border-gray-700 p-1">
+                      <template x-for="(row, r) in file.matrix.slice(0, 20)" :key="r">
+                        <div class="flex">
+                          <template x-for="(val, c) in row.slice(0, 50)" :key="c">
+                            <div 
+                              class="w-3 h-3 border border-white dark:border-gray-200 hover:outline hover:outline-1 hover:outline-black"
+                              :style="`background-color: ${getCellColor(val)};`"
+                              :title="val.toFixed(1)"
+                            ></div>
+                          </template>
+                        </div>
+                      </template>
+                    </div>
+                    <p class="text-xs text-gray-500 text-center mt-1">
+                      🟦 Top 20×50 rainfall matrix preview
+                    </p>
+                  </div>
+                </template>
+
+                <!-- Error -->
+                <template x-if="file.error">
+                  <div class="mt-2 text-red-500 text-sm italic" x-text="file.error"></div>
+                </template>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Close Button -->
+        <div class="mt-6 text-center">
+          <button
+            @click="showAnalysisModal = false"
+            class="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-700 hover:bg-gray-800 text-white font-semibold rounded-lg shadow transition"
+          >
+            ✖ Close
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- Data Table -->
     <div class="overflow-x-auto rounded-xl shadow-inner">
@@ -284,6 +443,9 @@
 
 <script>
   function xmpr(maxFileCount, maxTotalSizeMB) {
+    const ANALYZE_URL = "{% url 'datasets:analyze_xmpr_data' %}";
+    const DOWNLOAD_URL = "{% url 'datasets:download_xmpr_data' %}";
+
     return {
       selected: [],
       start: '{{ date_from }}',
@@ -292,13 +454,36 @@
       maxTotalSizeBytes: maxTotalSizeMB * 1024 * 1024,
       totalAvailableSize: 0,
       isDownloading: false,
+      isAnalyzing: false,
+      showAnalysisModal: false,
+      analysisResult: null,
+      downloading: false,
+      rainfallLegend: [
+        { value: 1, color: '#f2f2ff' },
+        { value: 5, color: '#bfe2f9' },
+        { value: 10, color: '#73c2f4' },
+        { value: 20, color: '#3d7af0' },
+        { value: 30, color: '#fff84b' },
+        { value: 50, color: '#f29e3c' },
+        { value: 80, color: '#c24e85' }
+      ],
+      getCellColor(val) {
+        if (val >= 80) return '#c24e85';
+        if (val >= 50) return '#f29e3c';
+        if (val >= 30) return '#fff84b';
+        if (val >= 20) return '#3d7af0';
+        if (val >= 10) return '#73c2f4';
+        if (val >= 5) return '#bfe2f9';
+        if (val >= 1) return '#f2f2ff';
+        return '#eeeeee';
+      },
 
       init() {
         this.calculateTotalAvailableSize();
       },
 
       calculateTotalAvailableSize() {
-        this.totalAvailableSize = Array.from(document.querySelectorAll('tbody input[type=checkbox]'))
+        this.totalAvailableSize = [...document.querySelectorAll('tbody input[type=checkbox]')]
           .map(cb => parseInt(cb.dataset.size || 0))
           .reduce((a, b) => a + b, 0);
       },
@@ -308,7 +493,7 @@
       },
 
       get selectedSize() {
-        return Array.from(document.querySelectorAll('tbody input[type=checkbox]'))
+        return [...document.querySelectorAll('tbody input[type=checkbox]')]
           .filter(cb => this.selected.includes(cb.value))
           .map(cb => parseInt(cb.dataset.size || 0))
           .reduce((a, b) => a + b, 0);
@@ -323,24 +508,84 @@
       },
 
       toggleAll(event) {
+        const checkboxes = [...document.querySelectorAll('tbody input[type=checkbox]')];
         this.selected = event.target.checked
-          ? Array.from(document.querySelectorAll('tbody input[type=checkbox]')).map(cb => cb.value)
+          ? checkboxes.map(cb => cb.value)
           : [];
       },
 
       async downloadSelected() {
         if (this.isSelectedOverLimit) {
-          alert(`Selection exceeds limits. Max ${this.maxFileCount} files and ${maxTotalSizeMB} MB.`);
+          alert(`⚠️ Selection exceeds limits. Max ${this.maxFileCount} files or ${maxTotalSizeMB} MB.`);
           return;
         }
+
         if (this.selected.length === 0) return;
 
         this.isDownloading = true;
         const params = new URLSearchParams();
         this.selected.forEach(id => params.append('ids[]', id));
-        
-        window.location.href = `{% url 'datasets:download_xmpr_data' %}?${params.toString()}`;
+
+        // Use browser download via GET
+        window.location.href = `${DOWNLOAD_URL}?${params.toString()}`;
         this.isDownloading = false;
+      },
+
+      async analyzeSelected() {
+        if (this.selected.length === 0) return;
+
+        this.isAnalyzing = true;
+        this.showAnalysisModal = true;
+        this.analysisResult = null;
+
+        try {
+          const response = await fetch(ANALYZE_URL, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRFToken': '{{ csrf_token }}',
+            },
+            body: JSON.stringify({ ids: this.selected })
+          });
+
+          const result = await response.json();
+
+          if (result.error) {
+            this.analysisResult = { summary: { message: "❌ " + result.error }, data: [] };
+          } else {
+            this.analysisResult = result;
+          }
+
+        } catch (error) {
+          this.analysisResult = {
+            summary: { message: "❌ Network or server error while analyzing." },
+            data: []
+          };
+        } finally {
+          this.isAnalyzing = false;
+        }
+      },
+
+      downloadPdfReport() {
+        this.downloading = true; // was isGeneratingPdf before
+
+        const el = document.getElementById("pdf-report-content");
+        const { jsPDF } = window.jspdf;
+
+        html2canvas(el, { scale: 2 }).then(canvas => {
+          const pdf = new jsPDF('p', 'mm', 'a4');
+          const imgData = canvas.toDataURL('image/png');
+          const imgProps = pdf.getImageProperties(imgData);
+          const pdfWidth = pdf.internal.pageSize.getWidth();
+          const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+          pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+          pdf.save('xmpr_rainfall_report.pdf');
+          this.downloading = false;
+        }).catch(() => {
+          alert("Failed to generate PDF.");
+          this.downloading = false;
+        });
       },
 
       formatBytes(bytes) {
@@ -350,7 +595,8 @@
         const i = Math.floor(Math.log(bytes) / Math.log(k));
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
       }
-    }
+    };
   }
 </script>
+
 {% endblock %}

@@ -7,13 +7,21 @@ class XmprDataType(DjangoObjectType):
     csv = graphene.String()
     png = graphene.String()
     tiff = graphene.String()
+    csv_size = graphene.Int()
+    png_size = graphene.Int()
+    tiff_size = graphene.Int()
+    total_file_size = graphene.Int()
+    total_file_size_display = graphene.String()
 
     class Meta:
         model = XmprData
-        fields = ("id", "time", "created_at", "updated_at")
+        fields = (
+            "id", "time", "created_at", "updated_at",
+            # We don't list csv/png/tiff here, because we override them
+        )
 
     def resolve_csv(self, info):
-        return self.csv_url  # Use the model's safe URL helper
+        return self.csv_url
 
     def resolve_png(self, info):
         return self.png_url
@@ -21,9 +29,17 @@ class XmprDataType(DjangoObjectType):
     def resolve_tiff(self, info):
         return self.tiff_url
 
+    def resolve_total_file_size(self, info):
+        return self.total_file_size
+
+    def resolve_total_file_size_display(self, info):
+        return self.total_file_size_display
+
+
 class XmprDataPageType(graphene.ObjectType):
     total_count = graphene.Int()
     items = graphene.List(XmprDataType)
+
 
 class Query(graphene.ObjectType):
     latest_xmpr_data = graphene.Field(
@@ -47,5 +63,6 @@ class Query(graphene.ObjectType):
         total = queryset.count()
         items = queryset.order_by('-time')[offset:offset + page_size]
         return XmprDataPageType(total_count=total, items=items)
+
 
 schema = graphene.Schema(query=Query)
