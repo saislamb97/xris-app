@@ -17,6 +17,8 @@ from django.utils.http import urlencode
 from subscriptions.models import Subscription, SubscriptionPackage
 from .models import XmprData, XmprDownloadLog
 import zipstream
+from dateutil import parser
+import re
 
 
 def get_client_ip(request):
@@ -178,29 +180,32 @@ def read_and_analyze_csv(path):
         with open(full_path, "r", encoding="utf-8") as f:
             lines = f.readlines()
 
+        # --- Extract datetime from first line ---
         metadata = {}
+        try:
+            raw_line = lines[0].strip().split(',')[0]  # ✅ Extract only the datetime portion
+            parsed_dt = parser.parse(raw_line, dayfirst=False, fuzzy=True)
+            metadata["datetime"] = parsed_dt.strftime("%Y-%m-%d %H:%M:%S")
+        except Exception as e:
+            metadata["datetime"] = "Unknown"
+
+
+        # --- Extract lat/lon/alt from the next few lines (usually float lines) ---
+        for line in lines[1:10]:
+            parts = [x.strip() for x in re.split(r"[,\t]", line) if x.strip()]
+            if len(parts) == 1 and is_float(parts[0]):
+                val = float(parts[0])
+                for key in ["lat", "lon", "alt"]:
+                    if key not in metadata:
+                        metadata[key] = val
+                        break
+
+        # --- Parse the matrix data (starting from line 7 or later) ---
         matrix = []
         max_len = 0
-
-        for line in lines[:10]:
-            parts = [x.strip() for x in line.split(",") if x.strip()]
-            if not parts:
-                continue
+        for line in lines[6:]:  # adjust offset as needed
             try:
-                if "/" in parts[0] and ":" not in parts[0]:
-                    metadata["datetime"] = parts[0]
-                elif len(parts) == 1 and is_float(parts[0]):
-                    val = float(parts[0])
-                    for key in ["lat", "lon", "alt"]:
-                        if key not in metadata:
-                            metadata[key] = val
-                            break
-            except:
-                continue
-
-        for line in lines:
-            try:
-                row = [float(x) for x in line.strip().split(",") if is_float(x)]
+                row = [float(x) for x in re.split(r"[,\t]", line.strip()) if is_float(x)]
                 if row:
                     max_len = max(max_len, len(row))
                     matrix.append(row)
@@ -210,16 +215,20 @@ def read_and_analyze_csv(path):
         if not matrix:
             return {"file": path, "error": "No valid matrix data"}
 
+        # Normalize row lengths
         matrix = [r + [0.0] * (max_len - len(r)) for r in matrix]
         arr = np.array(matrix)
 
+        # Compute stats
         arr_min = float(np.min(arr))
         arr_max = float(np.max(arr))
         arr_mean = float(np.mean(arr))
         arr_std = float(np.std(arr))
         nonzero_count = int(np.count_nonzero(arr))
         nonzero_percent = round(nonzero_count / arr.size * 100, 2)
+        row_means = np.mean(arr, axis=1).tolist()
 
+        # Rainfall classification
         total_cells = arr.size
         rain_distribution = {}
         for i, (threshold, label) in enumerate(RAINFALL_THRESHOLDS):
@@ -242,15 +251,21 @@ def read_and_analyze_csv(path):
             rain_class = "None"
 
         if arr_max > 100 and extreme_percent > 10:
-            decision = "\ud83d\uded8 Extreme rainfall alert"
+            decision = "\U0001F6A8 Extreme rainfall alert"
         elif extreme_percent + heavy_percent > 10:
-            decision = "\u26a0\ufe0f Significant rainfall detected"
+            decision = "\u26A0\uFE0F Significant rainfall detected"
         elif arr_max >= 5:
-            decision = "\u2614\ufe0f Some rainfall observed"
+            decision = "\u2614\uFE0F Some rainfall observed"
         else:
             decision = "\u2705 No significant rainfall"
 
-        preview = arr[::max(1, len(arr)//20)][:20, ::max(1, arr.shape[1]//50)][:, :50].tolist()
+        preview = arr[::max(1, len(arr) // 20)][:20, ::max(1, arr.shape[1] // 50)][:, :50].tolist()
+
+        hist_counts, bin_edges = np.histogram(arr, bins=[0, 1, 5, 10, 20, 30, 50, 80, np.max(arr)])
+        histogram = {
+            "bins": [f"{int(bin_edges[i])}-{int(bin_edges[i+1])}" for i in range(len(hist_counts))],
+            "counts": hist_counts.tolist()
+        }
 
         return {
             **metadata,
@@ -269,8 +284,10 @@ def read_and_analyze_csv(path):
             "rain_class": rain_class,
             "decision": decision,
             "rain_distribution": rain_distribution,
-            "matrix": arr.tolist(),          # full matrix
-            "preview": preview               # keep preview for default display
+            "matrix": arr.tolist(),
+            "preview": preview,
+            "row_means": row_means,
+            "histogram": histogram
         }
 
     except Exception as e:

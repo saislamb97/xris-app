@@ -17,7 +17,7 @@
           :disabled="selected.length == 0 || isDownloading {% if not active_subscription or active_subscription.package.name == PACKAGE_FREE %} || true {% endif %}"
           class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-semibold rounded-xl transition-all shadow-md flex items-center justify-center gap-2">
           <template x-if="!isDownloading">
-            <span>⬇️ Download Selected</span>
+            <span>⬇️ Download Selected Data</span>
           </template>
           <template x-if="isDownloading">
             <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -32,7 +32,7 @@
           :disabled="selected.length == 0 || isAnalyzing {% if not active_subscription or active_subscription.package.name == PACKAGE_FREE %} || true {% endif %}"
           class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold rounded-xl transition-all shadow-md flex items-center justify-center gap-2">
           <template x-if="!isAnalyzing">
-            <span>📊 Analyze Selected</span>
+            <span>📊 Analyze Selected Data</span>
           </template>
           <template x-if="isAnalyzing">
             <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -199,10 +199,13 @@
 
         </div>
 
-        <!-- Loading Message -->
+        <!-- AI Analyzing Loading Message -->
         <template x-if="!analysisResult">
-          <div class="py-20 text-center text-gray-400 dark:text-gray-500 text-lg">
-            ⏳ Analyzing selected rainfall data...
+          <div class="py-20 text-center text-gray-400 dark:text-gray-500 text-lg animate-fadeIn">
+            <div class="flex flex-col items-center space-y-2">
+              <div class="text-4xl animate-bounce">🤖</div>
+              <div class="font-medium text-gray-700 dark:text-gray-300">Hang tight — AI is working on it...</div>
+            </div>
           </div>
         </template>
 
@@ -229,7 +232,7 @@
           </div>
 
           <!-- Rainfall Legend -->
-          <div class="bg-white dark:bg-gray-900 sticky top-0 z-10 pt-4 pb-2 rounded-b-xl shadow-md">
+          <div class="bg-white dark:bg-gray-900 sticky -top-8 z-10 pt-4 pb-2 rounded-b-xl shadow-md">
             <h4 class="text-sm font-semibold text-center text-gray-800 dark:text-white mb-2">🌧️ Rainfall Intensity (mm/h)</h4>
             <div class="flex justify-center items-end gap-4 flex-wrap">
               <template x-for="level in rainfallLegend" :key="level.value">
@@ -243,11 +246,20 @@
 
           <!-- File Reports -->
           <div class="space-y-8">
-            <template x-for="file in analysisResult.data" :key="file.file">
+            <template x-for="(file, index) in analysisResult.data" :key="file.file">
               <div class="p-6 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl shadow space-y-4">
-                <h4 class="text-md font-semibold text-blue-600 dark:text-blue-400 break-all">
-                  <a :href="`/media/${file.file}`" target="_blank" rel="noopener noreferrer" x-text="file.file" class="hover:underline"></a>
-                </h4>
+                
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <!-- File Name -->
+                  <h4 class="text-md font-semibold text-blue-600 dark:text-blue-400 break-all">
+                    <a :href="`/media/${file.file}`" target="_blank" rel="noopener noreferrer" x-text="file.file" class="hover:underline"></a>
+                  </h4>
+
+                  <!-- Datetime -->
+                  <div class="text-sm text-gray-700 dark:text-gray-300">
+                    <strong>Datetime:</strong> <span x-text="file.datetime || 'N/A'"></span>
+                  </div>
+                </div>
 
                 <!-- Metrics -->
                 <div class="grid grid-cols-2 sm:grid-cols-3 gap-y-2 text-sm text-gray-700 dark:text-gray-300">
@@ -316,6 +328,14 @@
                       </template>
                     </div>
                     <p class="text-xs text-gray-500 text-center mt-1">🟦 Top 20×50 rainfall matrix preview</p>
+                  </div>
+                </template>
+
+                <!-- Rainfall Histogram -->
+                <template x-if="file.histogram">
+                  <div class="mt-6">
+                    <h5 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">📊 Rainfall Intensity Histogram</h5>
+                    <canvas :id="`histogram-${index}`" class="w-full h-48 bg-white dark:bg-gray-800 rounded shadow border dark:border-gray-700"></canvas>
                   </div>
                 </template>
 
@@ -567,7 +587,6 @@
         const params = new URLSearchParams();
         this.selected.forEach(id => params.append('ids[]', id));
 
-        // Use browser download via GET
         window.location.href = `${DOWNLOAD_URL}?${params.toString()}`;
         this.isDownloading = false;
       },
@@ -595,6 +614,51 @@
             this.analysisResult = { summary: { message: "❌ " + result.error }, data: [] };
           } else {
             this.analysisResult = result;
+
+            this.$nextTick(() => {
+              result.data.forEach((file, index) => {
+                const canvas = document.getElementById(`histogram-${index}`);
+                if (canvas && file.histogram) {
+                  new Chart(canvas.getContext('2d'), {
+                    type: 'line',
+                    data: {
+                      labels: file.histogram.bins,
+                      datasets: [{
+                        label: 'Cell Count',
+                        data: file.histogram.counts,
+                        fill: true,
+                        tension: 0.3,
+                        backgroundColor: 'rgba(59,130,246,0.1)',
+                        borderColor: 'rgba(59,130,246,1)',
+                        pointRadius: 4,
+                        pointBackgroundColor: 'rgba(59,130,246,1)',
+                      }]
+                    },
+                    options: {
+                      responsive: true,
+                      scales: {
+                        x: {
+                          title: {
+                            display: true,
+                            text: 'Rainfall Intensity (mm/h)'
+                          }
+                        },
+                        y: {
+                          beginAtZero: true,
+                          title: {
+                            display: true,
+                            text: 'Number of Cells'
+                          }
+                        }
+                      },
+                      plugins: {
+                        legend: { display: false }
+                      }
+                    }
+                  });
+                }
+              });
+            });
           }
 
         } catch (error) {
