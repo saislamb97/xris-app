@@ -1,0 +1,659 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div x-data="xmpr({{ max_file_count }}, {{ max_total_size }})" x-init="init()" class="container mx-auto px-4 py-10">
+  <div class="bg-white dark:bg-gray-900 rounded-2xl shadow-lg p-8">
+
+    <!-- Title Section -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-8 gap-4">
+      <h1 class="text-4xl font-extrabold text-gray-900 dark:text-white mb-1 flex items-center gap-2">
+        📊 <span>XMPR Data Explorer</span>
+      </h1>
+
+      <div class="flex flex-col sm:flex-row gap-2">
+        <button 
+          @click="downloadSelected"
+          :disabled="selected.length == 0 || isDownloading {% if not active_subscription or active_subscription.package.name == PACKAGE_FREE %} || true {% endif %}"
+          class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-semibold rounded-xl transition-all shadow-md flex items-center justify-center gap-2">
+          <template x-if="!isDownloading">
+            <span>⬇️ Download Selected Data</span>
+          </template>
+          <template x-if="isDownloading">
+            <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+            </svg>
+          </template>
+        </button>
+
+        <button
+          @click="analyzeSelected"
+          :disabled="selected.length == 0 || isAnalyzing {% if not active_subscription or active_subscription.package.name == PACKAGE_FREE %} || true {% endif %}"
+          class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold rounded-xl transition-all shadow-md flex items-center justify-center gap-2">
+          <template x-if="!isAnalyzing">
+            <span>📊 Analyze Selected Data</span>
+          </template>
+          <template x-if="isAnalyzing">
+            <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+            </svg>
+          </template>
+        </button>
+
+        {% if not active_subscription or active_subscription.package.name == PACKAGE_FREE %}
+          <div class="text-center text-red-500 font-semibold text-sm mt-2">
+            🚫 Downloads available only for Premium users.
+            <a href="{% url 'subscriptions:subscription' %}" class="text-blue-600 hover:underline ml-1">
+              Upgrade Now →
+            </a>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Meta Info Section -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+
+      <!-- Left Side: Showing Entries -->
+      <div>
+        <p class="text-sm text-gray-600 dark:text-gray-400">
+          Showing 
+          <strong>{{ page_obj.start_index }}–{{ page_obj.end_index }}</strong> 
+          of 
+          <strong>{{ page_obj.paginator.count }}</strong> 
+          entries
+        </p>
+      </div>
+
+      <!-- Right Side: Size and Selection Info -->
+      <div class="flex flex-wrap items-center gap-4 bg-gray-100 dark:bg-gray-800 px-4 py-3 rounded-xl shadow-inner text-sm text-gray-800 dark:text-gray-200">
+
+        <!-- Total Available Size -->
+        <div class="flex items-center gap-2">
+          <svg class="h-4 w-4 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M4 3a1 1 0 011-1h10a1 1 0 011 1v12a1 1 0 11-2 0V4H5v11a1 1 0 11-2 0V3z" />
+          </svg>
+          <span>Total Size: 
+            <strong class="text-blue-600 dark:text-blue-400" x-text="formatBytes(totalSize)"></strong>
+          </span>
+        </div>
+
+        <!-- Selected Size -->
+        <div class="flex items-center gap-2">
+          <svg class="h-4 w-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M9 12l2-2 5 5V6a1 1 0 10-2 0v6l-3-3-4 4-3-3v8a1 1 0 001 1h8a1 1 0 100-2H5v-5l4 4z" />
+          </svg>
+          <span>Selected Size: 
+            <strong class="text-green-600 dark:text-green-400" x-text="formatBytes(selectedSize)"></strong>
+          </span>
+        </div>
+
+        <!-- Selected Files Count -->
+        <div class="flex items-center gap-2">
+          <svg class="h-4 w-4 text-indigo-500" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M13 7H7v6h6V7zM4 6h2v8H4V6zm10 8h2V6h-2v8z" />
+          </svg>
+          <span>Selected Files: 
+            <strong class="text-indigo-600 dark:text-indigo-400" x-text="selectedCount"></strong>
+          </span>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- Filters -->
+    <form method="get" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4 mb-10 items-end">
+      <div>
+        <label for="date_from" class="block text-sm font-medium text-gray-700 dark:text-gray-300">From Date</label>
+        <input type="date" name="date_from" id="date_from" value="{{ date_from }}" x-model="start"
+              class="w-full mt-1 px-4 py-2 rounded-lg border dark:border-gray-600 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-blue-500 focus:border-blue-500">
+      </div>
+      <div>
+        <label for="date_to" class="block text-sm font-medium text-gray-700 dark:text-gray-300">To Date</label>
+        <input type="date" name="date_to" id="date_to" value="{{ date_to }}" x-model="end"
+              class="w-full mt-1 px-4 py-2 rounded-lg border dark:border-gray-600 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-blue-500 focus:border-blue-500">
+      </div>
+      <div>
+        <label for="year" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Year</label>
+        <select name="year" id="year"
+                class="w-full mt-1 px-4 py-2 rounded-lg border dark:border-gray-600 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white">
+          <option value="">All</option>
+          {% for y in year_list %}
+            <option value="{{ y }}" {% if year|stringformat:"s" == y|stringformat:"s" %}selected{% endif %}>{{ y }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="month" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Month</label>
+        <select name="month" id="month"
+                class="w-full mt-1 px-4 py-2 rounded-lg border dark:border-gray-600 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white">
+          <option value="">All</option>
+          {% for val, name in month_choices %}
+            <option value="{{ val }}" {% if month|stringformat:"s" == val|stringformat:"s" %}selected{% endif %}>{{ name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="limit" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Page Size</label>
+        <select name="limit" id="limit"
+                class="w-full mt-1 px-4 py-2 rounded-lg border dark:border-gray-600 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white">
+          {% for size in page_sizes %}
+            <option value="{{ size }}" {% if limit == size %}selected{% endif %}>{{ size }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="flex gap-2">
+        <button type="submit" @click="selected = []"
+                class="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold p-2 rounded-lg transition-all shadow-md">
+          🔍 Apply
+        </button>
+        <a href="{% url 'datasets:xmpr_data' %}" @click="selected = []"
+          class="w-full bg-gray-400 hover:bg-gray-500 text-white text-center font-semibold p-2 rounded-lg transition-all shadow-md">
+          ❌ Clear
+        </a>
+      </div>
+    </form>
+    
+    <!-- Analyzer Modal -->
+    <div
+      x-show="showAnalysisModal"
+      x-data="xmprAnalysisModal()"
+      x-cloak
+      class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center px-4"
+    >
+      <div
+        @click.away="showAnalysisModal = false"
+        class="relative w-full max-w-6xl bg-white dark:bg-gray-900 rounded-2xl shadow-2xl overflow-y-auto max-h-[90vh] p-8"
+      >
+
+        <!-- Fullscreen Blur Loading Overlay -->
+        <div
+          x-show="downloading"
+          class="absolute inset-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm flex flex-col items-center justify-center rounded-2xl"
+        >
+          <svg class="w-12 h-12 text-rose-600 animate-spin mb-4" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+          </svg>
+          <p class="text-lg font-semibold text-rose-700 dark:text-rose-200">Generating PDF report...</p>
+        </div>
+
+        <!-- Modal Header -->
+        <div class="flex items-center justify-between mb-6">
+          <h2 class="text-3xl font-extrabold text-gray-800 dark:text-white flex items-center gap-2">
+            📈 XMPR Rainfall Dashboard
+          </h2>
+          
+          <template x-if="!isAnalyzing">
+            <button
+              @click="downloadPdfReport"
+              :disabled="downloading"
+              class="inline-flex items-center gap-2 px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white text-sm font-semibold rounded-lg shadow disabled:opacity-60"
+            >
+              <span x-show="!downloading">🖨️ Download PDF</span>
+            </button>
+          </template>
+
+        </div>
+
+        <!-- AI Analyzing Loading Message -->
+        <template x-if="!analysisResult">
+          <div class="py-20 text-center text-gray-400 dark:text-gray-500 text-lg animate-fadeIn">
+            <div class="flex flex-col items-center space-y-2">
+              <div class="text-4xl animate-bounce">🤖</div>
+              <div class="font-medium text-gray-700 dark:text-gray-300">Hang tight — AI is working on it...</div>
+            </div>
+          </div>
+        </template>
+
+        <!-- Dashboard Content -->
+        <div id="pdf-report-content" class="space-y-10" x-show="analysisResult">
+
+          <!-- Rainfall Legend -->
+          <div class="bg-white dark:bg-gray-900 sticky -top-8 z-10 pt-4 pb-2 rounded-b-xl shadow-md">
+            <h4 class="text-sm font-semibold text-center text-gray-800 dark:text-white mb-2">🌧️ Rainfall Intensity (mm/h)</h4>
+            <div class="flex justify-center items-end gap-4 flex-wrap">
+              <template x-for="level in rainfallLegend" :key="level.value">
+                <div class="flex flex-col items-center">
+                  <div class="w-8 h-5 rounded border border-gray-400" :style="`background-color: ${level.color}`"></div>
+                  <span class="text-xs text-gray-700 dark:text-gray-300 mt-1" x-text="level.value + ' mm/h'"></span>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <!-- File Reports -->
+          <div class="space-y-8">
+            <template x-for="(file, index) in analysisResult.data" :key="file.file">
+              <div class="p-6 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl shadow space-y-4">
+                
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <!-- File Name -->
+                  <h4 class="text-md font-semibold text-blue-600 dark:text-blue-400 break-all">
+                    <a :href="`/media/${file.file}`" target="_blank" rel="noopener noreferrer" x-text="file.file" class="hover:underline"></a>
+                  </h4>
+
+                  <!-- Datetime -->
+                  <div class="text-sm text-gray-700 dark:text-gray-300">
+                    <strong>Datetime:</strong> <span x-text="file.datetime || 'N/A'"></span>
+                  </div>
+                </div>
+
+                <!-- Metrics -->
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-y-2 text-sm text-gray-700 dark:text-gray-300">
+                  <div><strong>Shape:</strong> <span x-text="file.shape"></span></div>
+                  <div><strong>Min:</strong> <span x-text="file.min?.toFixed(2)"></span></div>
+                  <div><strong>Max:</strong> <span x-text="file.max?.toFixed(2)"></span></div>
+                  <div><strong>Mean:</strong> <span x-text="file.mean?.toFixed(2)"></span></div>
+                  <div><strong>Std Dev:</strong> <span x-text="file.std?.toFixed(2)"></span></div>
+                  <div><strong>Non-zero %:</strong> <span x-text="file.nonzero_percent?.toFixed(1) + '%'"></span></div>
+                </div>
+
+                <!-- Insights -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4 text-sm text-gray-700 dark:text-gray-300">
+                  <div class="bg-indigo-50 dark:bg-indigo-900/30 px-4 py-2 rounded-lg border border-indigo-300 dark:border-indigo-700">
+                    <div class="text-xs text-indigo-500 dark:text-indigo-300">🌧️ Rainfall Class</div>
+                    <div class="font-bold text-indigo-700 dark:text-indigo-200 italic" x-text="file.rain_class"></div>
+                  </div>
+                  <div class="bg-yellow-50 dark:bg-yellow-900/30 px-4 py-2 rounded-lg border border-yellow-300 dark:border-yellow-700">
+                    <div class="text-xs text-yellow-500 dark:text-yellow-300">⚠️ Extreme Zone (%)</div>
+                    <div class="font-bold text-yellow-700 dark:text-yellow-200 flex gap-2 items-center">
+                      <span x-text="file.extreme_zone_percent?.value.toFixed(1) + '%'"></span>
+                      <span class="text-xs font-normal text-yellow-600 dark:text-yellow-300 italic" x-text="file.extreme_zone_percent?.comment"></span>
+                    </div>
+                  </div>
+                  <div class="bg-rose-50 dark:bg-rose-900/30 px-4 py-2 rounded-lg border border-rose-300 dark:border-rose-700">
+                    <div class="text-xs text-rose-500 dark:text-rose-300">📢 Decision</div>
+                    <div class="font-bold text-rose-700 dark:text-rose-200 italic" x-text="file.decision"></div>
+                  </div>
+                </div>
+
+                <!-- Rainfall Distribution -->
+                <template x-if="file.rain_distribution">
+                  <div x-ref="rainDist" class="mt-4" :class="{ 'hidden': skipRainDist }">
+                    <h5 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">🌈 Rainfall Distribution</h5>
+                    <div class="flex flex-col gap-1">
+                      <template x-for="(percent, label) in file.rain_distribution" :key="label">
+                        <div class="flex items-center gap-2 text-xs">
+                          <div class="w-24 text-right text-gray-500 dark:text-gray-400" x-text="label"></div>
+                          <div class="flex-1 h-3 rounded bg-gray-200 dark:bg-gray-700 overflow-hidden relative">
+                            <div
+                              class="h-full rounded bg-gradient-to-r from-sky-400 to-blue-600 dark:from-sky-700 dark:to-blue-900"
+                              :style="`width: ${Math.max(percent, 0.1)}%;`"
+                            ></div>
+                          </div>
+                          <div class="w-12 text-right font-semibold text-gray-700 dark:text-gray-200" x-text="percent.toFixed(1) + '%'"></div>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+                </template>
+
+                <!-- Heatmap -->
+                <template x-if="file.matrix">
+                  <div class="flex flex-col items-center">
+                    <div class="inline-block rounded border border-gray-300 dark:border-gray-700 p-1 overflow-auto max-w-full">
+                      <template x-for="(row, r) in file.matrix.slice(0, 20)" :key="r">
+                        <div class="flex">
+                          <template x-for="(val, c) in row.slice(0, 50)" :key="c">
+                            <div 
+                              class="w-3 h-3 border border-white dark:border-gray-200 hover:outline hover:outline-1 hover:outline-black"
+                              :style="`background-color: ${getCellColor(val)};`"
+                              :title="val.toFixed(1)"
+                            ></div>
+                          </template>
+                        </div>
+                      </template>
+                    </div>
+                    <p class="text-xs text-gray-500 text-center mt-1">🟦 Top 20×50 rainfall matrix preview</p>
+                  </div>
+                </template>
+
+                <!-- Error -->
+                <template x-if="file.error">
+                  <div class="text-sm text-red-500 italic" x-text="file.error"></div>
+                </template>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Close Button -->
+        <div class="mt-8 text-center">
+          <button
+            @click="showAnalysisModal = false"
+            class="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-700 hover:bg-gray-800 text-white font-semibold rounded-lg shadow transition"
+          >
+            ✖ Close
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Data Table -->
+    <div class="overflow-x-auto rounded-xl shadow-inner">
+      <table class="min-w-full divide-y divide-gray-300 dark:divide-gray-700 text-sm text-left">
+        <thead class="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200">
+          <tr>
+            <th class="px-4 py-3"><input type="checkbox" @change="toggleAll" class="accent-blue-600 w-5 h-5" /></th>
+            <th class="px-4 py-3">Timestamp</th>
+            <th class="px-4 py-3">CSV</th>
+            <th class="px-4 py-3">PNG</th>
+            <th class="px-4 py-3">TIFF</th>
+            <th class="px-4 py-3">Size</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-200 dark:divide-gray-800 text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-800">
+          {% for entry in page_obj %}
+          <tr>
+            <td class="px-4 py-3">
+              <input
+                type="checkbox"
+                value="{{ entry.id }}"
+                data-size="{{ entry.total_file_size }}"
+                x-model="selected"
+                class="accent-blue-600 w-5 h-5"
+              />
+
+            </td>
+            <td class="px-4 py-3">{{ entry.time|date:"Y-m-d h:i A" }}</td>
+        
+            <!-- CSV -->
+            <td class="px-4 py-3">
+              {% if entry.csv_url %}
+                {% if active_subscription and active_subscription.package.name != PACKAGE_FREE %}
+                  <a href="{{ entry.csv_url }}" class="text-blue-600 hover:underline" download>Download</a>
+                {% else %}
+                  <span class="text-gray-400 italic">Restricted</span>
+                {% endif %}
+              {% else %}
+                <span class="text-gray-400 italic">No File</span>
+              {% endif %}
+            </td>
+
+            <!-- PNG -->
+            <td class="px-4 py-3">
+              {% if entry.png_url %}
+                {% if active_subscription and active_subscription.package.name != PACKAGE_FREE %}
+                  <a href="{{ entry.png_url }}" target="_blank">
+                    <img src="{{ entry.png_url }}" alt="PNG Preview" class="w-16 h-auto rounded shadow hover:scale-105 transition-transform duration-200">
+                  </a>
+                {% else %}
+                  <img src="{{ entry.png_url }}" alt="PNG Preview" class="w-16 h-auto rounded shadow opacity-50 cursor-not-allowed">
+                {% endif %}
+              {% else %}
+                <span class="text-gray-400 italic">No Image</span>
+              {% endif %}
+            </td>
+        
+            <!-- TIFF -->
+            <td class="px-4 py-3">
+              {% if entry.tiff_url %}
+                {% if active_subscription and active_subscription.package.name != PACKAGE_FREE %}
+                  <a href="{{ entry.tiff_url }}" class="text-blue-600 hover:underline" download>Download</a>
+                {% else %}
+                  <span class="text-gray-400 italic">Restricted</span>
+                {% endif %}
+              {% else %}
+                <span class="text-gray-400 italic">No File</span>
+              {% endif %}
+            </td>
+
+            <!-- ✅ File Size -->
+            <td class="px-4 py-3">
+              {{ entry.total_file_size_display }}
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="6" class="px-4 py-8 text-center">
+              <div class="flex flex-col items-center gap-2">
+                <svg class="w-12 h-12 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path d="M9 12h6m-3-3v6m9 4V5a2 2 0 00-2-2H8.414A2 2 0 007 3.586L3.586 7A2 2 0 003 8.414V19a2 2 0 002 2h14a2 2 0 002-2z" />
+                </svg>
+                <p class="text-gray-500 dark:text-gray-400 text-sm">No matching data found.</p>
+              </div>
+            </td>            
+          </tr>
+          {% endfor %}
+        </tbody>        
+      </table>
+    </div>
+
+    <!-- Smart Pagination with Filters Preserved -->
+    <div class="mt-10 flex justify-center flex-wrap gap-2 text-sm font-medium">
+      <!-- Previous -->
+      {% if page_obj.has_previous %}
+      <a href="?page={{ page_obj.previous_page_number }}&{{ query_string }}"
+        class="px-3 py-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600">
+        ← Prev
+      </a>
+      {% endif %}
+
+      {% with total=page_obj.paginator.num_pages current=page_obj.number %}
+        {% if total > 1 %}
+          
+          <!-- First page -->
+          {% if current > 3 %}
+            <a href="?page=1&{{ query_string }}" class="px-3 py-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600">1</a>
+            <span class="px-2 text-gray-400">…</span>
+          {% endif %}
+
+          <!-- Main range: 2 before, current, 3 after -->
+          {% for num in page_obj.paginator.page_range %}
+            {% if num >= current|add:"-2" and num <= current|add:"3" %}
+              {% if num == current %}
+                <span class="px-3 py-1 bg-indigo-600 text-white rounded-md font-semibold">{{ num }}</span>
+              {% else %}
+                <a href="?page={{ num }}&{{ query_string }}" class="px-3 py-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600">{{ num }}</a>
+              {% endif %}
+            {% endif %}
+          {% endfor %}
+
+          <!-- Last page -->
+          {% if current < total|add:"-3" %}
+            <span class="px-2 text-gray-400">…</span>
+            <a href="?page={{ total }}&{{ query_string }}" class="px-3 py-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600">{{ total }}</a>
+          {% endif %}
+
+        {% endif %}
+      {% endwith %}
+
+      <!-- Next -->
+      {% if page_obj.has_next %}
+      <a href="?page={{ page_obj.next_page_number }}&{{ query_string }}"
+        class="px-3 py-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600">
+        Next →
+      </a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<script>
+  function xmpr(maxFileCount, maxTotalSizeMB) {
+    const ANALYZE_URL = "{% url 'datasets:analyze_xmpr_data' %}";
+    const DOWNLOAD_URL = "{% url 'datasets:download_xmpr_data' %}";
+
+    return {
+      selected: [],
+      start: '{{ date_from }}',
+      end: '{{ date_to }}',
+      maxFileCount,
+      maxTotalSizeBytes: maxTotalSizeMB * 1024 * 1024,
+      totalAvailableSize: 0,
+      isDownloading: false,
+      isAnalyzing: false,
+      showAnalysisModal: false,
+      analysisResult: null,
+      downloading: false,
+      skipRainDist: false,
+
+      rainfallLegend: [
+        { value: 1, color: '#f2f2ff' },
+        { value: 5, color: '#bfe2f9' },
+        { value: 10, color: '#73c2f4' },
+        { value: 20, color: '#3d7af0' },
+        { value: 30, color: '#fff84b' },
+        { value: 50, color: '#f29e3c' },
+        { value: 80, color: '#c24e85' }
+      ],
+      getCellColor(val) {
+        if (val >= 80) return '#c24e85';
+        if (val >= 50) return '#f29e3c';
+        if (val >= 30) return '#fff84b';
+        if (val >= 20) return '#3d7af0';
+        if (val >= 10) return '#73c2f4';
+        if (val >= 5) return '#bfe2f9';
+        if (val >= 1) return '#f2f2ff';
+        return '#eeeeee';
+      },
+
+      init() {
+        this.calculateTotalAvailableSize();
+      },
+
+      calculateTotalAvailableSize() {
+        this.totalAvailableSize = [...document.querySelectorAll('tbody input[type=checkbox]')]
+          .map(cb => parseInt(cb.dataset.size || 0))
+          .reduce((a, b) => a + b, 0);
+      },
+
+      get totalSize() {
+        return this.totalAvailableSize;
+      },
+
+      get selectedSize() {
+        return [...document.querySelectorAll('tbody input[type=checkbox]')]
+          .filter(cb => this.selected.includes(cb.value))
+          .map(cb => parseInt(cb.dataset.size || 0))
+          .reduce((a, b) => a + b, 0);
+      },
+
+      get selectedCount() {
+        return this.selected.length;
+      },
+
+      get isSelectedOverLimit() {
+        return this.selectedCount > this.maxFileCount || this.selectedSize > this.maxTotalSizeBytes;
+      },
+
+      toggleAll(event) {
+        const checkboxes = [...document.querySelectorAll('tbody input[type=checkbox]')];
+        this.selected = event.target.checked
+          ? checkboxes.map(cb => cb.value)
+          : [];
+      },
+
+      async downloadSelected() {
+        if (this.isSelectedOverLimit) {
+          alert(`⚠️ Selection exceeds limits. Max ${this.maxFileCount} files or ${maxTotalSizeMB} MB.`);
+          return;
+        }
+
+        if (this.selected.length === 0) return;
+
+        this.isDownloading = true;
+        const params = new URLSearchParams();
+        this.selected.forEach(id => params.append('ids[]', id));
+
+        window.location.href = `${DOWNLOAD_URL}?${params.toString()}`;
+        this.isDownloading = false;
+      },
+
+      async analyzeSelected() {
+        if (this.selected.length === 0) return;
+
+        this.isAnalyzing = true;
+        this.showAnalysisModal = true;
+        this.analysisResult = null;
+
+        try {
+          const response = await fetch(ANALYZE_URL, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRFToken': '{{ csrf_token }}',
+            },
+            body: JSON.stringify({ ids: this.selected })
+          });
+
+          const result = await response.json();
+
+          if (result.error) {
+            this.analysisResult = { summary: { message: "❌ " + result.error }, data: [] };
+          } else {
+            this.analysisResult = result;
+          }
+
+        } catch (error) {
+          this.analysisResult = {
+            summary: { message: "❌ Network or server error while analyzing." },
+            data: []
+          };
+        } finally {
+          this.isAnalyzing = false;
+        }
+      },
+
+      downloadPdfReport() {
+        this.downloading = true;
+        this.skipRainDist = true;
+
+        const el = document.getElementById("pdf-report-content");
+
+        if (!el) {
+          alert("PDF content not found.");
+          this.downloading = false;
+          return;
+        }
+
+        setTimeout(() => {
+          html2canvas(el, { scale: 2, useCORS: true }).then(canvas => {
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new window.jspdf.jsPDF('p', 'mm', 'a4');
+            const pageWidth = pdf.internal.pageSize.getWidth();
+            const pageHeight = pdf.internal.pageSize.getHeight();
+
+            const imgProps = pdf.getImageProperties(imgData);
+            const imgHeight = (imgProps.height * pageWidth) / imgProps.width;
+
+            let heightLeft = imgHeight;
+            let position = 0;
+
+            pdf.addImage(imgData, 'PNG', 0, position, pageWidth, imgHeight);
+            heightLeft -= pageHeight;
+
+            while (heightLeft > 0) {
+              position = heightLeft - imgHeight;
+              pdf.addPage();
+              pdf.addImage(imgData, 'PNG', 0, position, pageWidth, imgHeight);
+              heightLeft -= pageHeight;
+            }
+
+            pdf.save('xmpr_rainfall_report.pdf');
+          }).catch(error => {
+            console.error("PDF generation error:", error);
+            alert("Failed to generate PDF. Please try again.");
+          }).finally(() => {
+            this.skipRainDist = false;
+            this.downloading = false;
+          });
+        }, 500);
+      },
+
+      formatBytes(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+      }
+    };
+  }
+</script>
+
+{% endblock %}

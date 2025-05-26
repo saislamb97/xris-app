@@ -1,0 +1,15 @@
+Row 1 : date and time / types of scanning 
+Row 2 : latitude 
+Row 3 : longitude 
+Row 4 : total sweep number 
+Row 5 : number of range gates 
+Row 6: resolution or cell size (m) 
+Row 7: azimuth off set value 
+Row 8: azimuth of each sweep/ scanning rotation 
+Row 9 : elevation angle 
+Row 11 on wards : data 
+
+xmpr:xband multiparameter polarimetric radar
+xris: xband radar information system 
+domain: xris.com.my
+

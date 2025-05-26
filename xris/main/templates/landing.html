@@ -1,0 +1,124 @@
+{% load static heroicons %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>{{ project_config.site_name }} — {{ project_config.short_description }}</title>
+  <link rel="icon" href="{{ project_config.favicon.url }}" type="image/x-icon" />
+
+  <!-- Tailwind & Alpine -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans">
+
+  <!-- Navbar -->
+  <header class="bg-white shadow fixed top-0 inset-x-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16">
+        <div class="flex items-center gap-4">
+          <a href="{% url 'main:home' %}">
+            <img src="{{ project_config.logo.url }}" class="h-10 w-auto" alt="{{ project_config.site_name }} Logo"/>
+          </a>
+          <div>
+            <span class="text-2xl font-extrabold text-gray-800 tracking-tight">{{ project_config.site_name }}</span>
+            <p class="text-xs text-gray-500 leading-tight">{{ project_config.short_description }}</p>
+          </div>
+        </div>
+        {% if not user.is_authenticated %}
+        <div class="flex items-center gap-3">
+          <a href="{% url 'account_login' %}" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition">
+            Login
+          </a>
+          <a href="{% url 'account_signup' %}" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition">
+            Get Started
+          </a>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  {% if hero %}
+  <section class="pt-28 pb-20 bg-gradient-to-r from-blue-100 to-blue-200 text-center">
+    <div class="max-w-5xl mx-auto px-6">
+      <h1 class="text-4xl sm:text-5xl font-extrabold text-gray-900 leading-tight">{{ hero.title }}</h1>
+      <p class="mt-4 text-lg text-gray-700 max-w-2xl mx-auto">{{ hero.subtitle }}</p>
+      <div class="mt-8 flex flex-col sm:flex-row justify-center gap-4">
+        {% if user.is_authenticated %}
+        <a href="{% url 'main:home' %}" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg shadow">
+          Go to Dashboard
+        </a>
+        {% else %}
+        <a href="{% url 'account_signup' %}" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg shadow">
+          Get Started Free
+        </a>
+        {% endif %}
+        <a href="{% url 'main:live_radar' %}" class="bg-white hover:bg-blue-100 text-blue-700 border border-blue-300 font-semibold py-3 px-6 rounded-lg shadow">
+          View Live Radar
+        </a>
+      </div>
+    </div>
+  </section>
+  {% endif %}
+
+  <!-- About XMPR -->
+  {% if about %}
+  <section class="py-20 bg-gray-100">
+    <div class="max-w-5xl mx-auto px-6">
+      <h2 class="text-3xl font-bold text-gray-900 text-center mb-6">{{ about.heading }}</h2>
+      <p class="text-gray-700 text-lg leading-relaxed text-justify">{{ about.paragraph_1 }}</p>
+      <p class="text-gray-700 text-lg leading-relaxed mt-4 text-justify">{{ about.paragraph_2 }}</p>
+    </div>
+  </section>
+  {% endif %}
+
+  <!-- Image Gallery Carousel -->
+  {% if gallery %}
+  <section class="py-20 bg-white">
+    <div class="max-w-4xl mx-auto px-6 text-center">
+      <h2 class="text-3xl font-bold text-gray-900 mb-6">Gallery: Radar Observations</h2>
+
+      <div x-data="{ activeSlide: 0, slides: {{ gallery|length }} }" class="relative">
+        <!-- Slides -->
+        <div class="relative overflow-hidden rounded-lg shadow-lg h-[400px]">
+          {% for image in gallery %}
+          <div x-show="activeSlide === {{ forloop.counter0 }}" class="absolute inset-0 transition-all duration-500 ease-in-out">
+            <img src="{{ image.image.url }}" alt="{{ image.caption|default:'Radar Image' }}" class="w-full h-full object-cover rounded-lg" />
+          </div>
+          {% endfor %}
+        </div>
+
+        <!-- Navigation Arrows -->
+        <button @click="activeSlide = (activeSlide - 1 + slides) % slides"
+                class="absolute top-1/2 left-0 transform -translate-y-1/2 bg-white bg-opacity-80 hover:bg-opacity-100 px-3 py-1 rounded-r-lg shadow">
+          ‹
+        </button>
+        <button @click="activeSlide = (activeSlide + 1) % slides"
+                class="absolute top-1/2 right-0 transform -translate-y-1/2 bg-white bg-opacity-80 hover:bg-opacity-100 px-3 py-1 rounded-l-lg shadow">
+          ›
+        </button>
+
+        <!-- Dots -->
+        <div class="mt-6 flex justify-center space-x-2">
+          <template x-for="index in slides" :key="index">
+            <button @click="activeSlide = index - 1"
+                    :class="{'bg-blue-600': activeSlide === index - 1, 'bg-gray-300': activeSlide !== index - 1}"
+                    class="w-3 h-3 rounded-full transition duration-300 ease-in-out"></button>
+          </template>
+        </div>
+      </div>
+    </div>
+  </section>
+  {% endif %}
+
+  <!-- Footer -->
+  <footer class="py-6 bg-gray-800 text-gray-300 text-center">
+    <p>© {{ now|date:"Y" }} {{ project_config.site_name }} — Developed at MJIIT, Universiti Teknologi Malaysia</p>
+  </footer>
+
+</body>
+</html>

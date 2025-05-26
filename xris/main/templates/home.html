@@ -1,0 +1,246 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Dashboard | XRIS{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto space-y-6">
+
+  <!-- Header -->
+  <div class="bg-gray-200 rounded-lg shadow p-6">
+    <h1 class="text-3xl font-bold mb-2">Welcome, {{ request.user.first_name|default:request.user.username }} 👋</h1>
+    <p>Here’s your XRIS overview.</p>
+  </div>
+
+    {% if active_subscription %}
+      {% if active_subscription.pending_cancellation %}
+        <p class="text-sm mt-1 text-yellow-600">
+          ⚠️ Your subscription will cancel automatically on {{ active_subscription.expiry_date|date:"Y-m-d" }}.
+        </p>
+      {% endif %}
+    {% endif %}
+
+  <!-- Stat Cards -->
+  <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+    <div class="{% if active_subscription %}bg-green-200 text-green-900{% else %}bg-yellow-100 text-yellow-900{% endif %} p-4 rounded-lg shadow">
+      <h2 class="text-lg font-semibold">Subscription</h2>
+    
+      {% if active_subscription %}
+        <p class="mt-1">
+          Your current Plan: 
+          <span class="font-medium">{{ active_subscription.package.name }}</span>
+        </p>
+        <p class="text-sm mt-1">
+          Expiry Date: 
+          <span class="font-medium">{{ active_subscription.expiry_date|date:"Y-m-d h:i A" }}</span>
+        </p>
+    
+      {% else %}
+        <p class="mt-1">
+          Your current Plan: 
+          <span class="font-medium">{{ PACKAGE_FREE }}</span>
+        </p>
+        <p class="text-sm mt-2">
+          <a href="{% url 'subscriptions:subscription' %}" class="text-blue-600 hover:underline font-semibold">
+            Upgrade now
+          </a>
+          to enjoy premium features!
+        </p>
+      {% endif %}
+    </div>    
+
+    <div class="bg-purple-100 p-4 rounded-lg shadow text-purple-900">
+      <h2 class="text-lg font-semibold">XMPR Datasets</h2>
+      <p class="text-3xl font-bold mt-2">{{ xmpr_count|default:"0" }}</p>
+    </div>
+
+    <div class="bg-yellow-100 p-4 rounded-lg shadow text-yellow-900">
+      <h2 class="text-lg font-semibold">Downloads</h2>
+      <p class="text-3xl font-bold mt-2">{{ download_count|default:"0" }}</p>
+    </div>
+
+    <div class="bg-indigo-100 p-4 rounded-lg shadow text-indigo-900">
+      <h2 class="text-lg font-semibold">Downloaded Size</h2>
+      <p class="text-3xl font-bold mt-2" id="downloadSize" data-bytes="{{ total_downloaded_size }}">
+        {{ total_downloaded_size|filesizeformat }}
+      </p>
+    </div>
+  </div>
+
+  <!-- Download Charts -->
+  <div class="bg-white rounded-lg shadow p-6">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="text-xl font-semibold">Download Trends</h2>
+      <select id="periodSelect" class="border rounded px-2 py-1">
+        <option value="7" selected>Last 7 Days</option>
+        <option value="30">Last 30 Days</option>
+      </select>
+    </div>
+    <canvas id="downloadsChart" class="w-full h-64"></canvas>
+  </div>
+
+  <!-- Recent Uploads & Downloads -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div class="bg-white rounded-lg shadow p-6">
+      <h2 class="text-xl font-semibold mb-4">Recent Uploads</h2>
+      {% if recent_uploads %}
+      <ul class="space-y-2 text-gray-700">
+        {% for upload in recent_uploads %}
+        <li class="border-l-4 border-purple-500 pl-4">
+          {{ upload.time|date:"Y-m-d h:i A" }} — <strong>{{ upload.total_file_size_display }}</strong>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="text-gray-500">No uploads found.</p>
+      {% endif %}
+    </div>
+
+    <div class="bg-white rounded-lg shadow p-6">
+      <h2 class="text-xl font-semibold mb-4">Recent Downloads</h2>
+      {% if recent_downloads %}
+      <ul class="space-y-2 text-gray-700">
+        {% for download in recent_downloads %}
+        <li class="border-l-4 border-green-500 pl-4">
+          {{ download.downloaded_at|date:"Y-m-d h:i A" }} — <strong>{{ download.xmpr_data }}</strong>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="text-gray-500">No downloads found.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Recent Activities -->
+  <div class="bg-white rounded-lg shadow p-6">
+    <h2 class="text-xl font-semibold mb-4">Recent Activities</h2>
+    {% if recent_logs %}
+    <ul class="space-y-2 text-gray-700">
+      {% for log in recent_logs %}
+      <li class="border-l-4 border-blue-500 pl-4">
+        {{ log.get_action_flag_display }} — {{ log.object_repr }} <span class="text-gray-400">({{ log.action_time|naturaltime }})</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-gray-500">No recent activities.</p>
+    {% endif %}
+  </div>
+
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    let chart = null;
+    let period = '7'; // default
+
+    const labels7 = {{ chart_labels_7|safe }};
+    const data7 = {{ chart_data_7|safe }};
+    const labels30 = {{ chart_labels_30|safe }};
+    const data30 = {{ chart_data_30|safe }};
+
+    // Utility: create gradient for bar fill
+    function createGradient(ctx, colorStart, colorEnd) {
+      const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+      gradient.addColorStop(0, colorStart);
+      gradient.addColorStop(1, colorEnd);
+      return gradient;
+    }
+
+    // Utility: format bytes to human-readable format
+    function formatBytes(bytes) {
+      if (bytes === 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    // Chart rendering function
+    function renderChart(labels, data, colors) {
+      const ctx = document.getElementById('downloadsChart').getContext('2d');
+      if (chart) {
+        chart.destroy();
+      }
+      const gradient = createGradient(ctx, colors.start, colors.end);
+      chart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Downloads',
+            data,
+            backgroundColor: gradient,
+            borderColor: colors.border,
+            borderWidth: 2,
+            borderRadius: 6,
+            hoverBackgroundColor: colors.hover,
+          }]
+        },
+        options: {
+          responsive: true,
+          animation: {
+            duration: 1500,
+            easing: 'easeInOutQuart',
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: { stepSize: 1 }
+            }
+          },
+          plugins: {
+            tooltip: {
+              backgroundColor: 'rgba(30,30,30,0.8)',
+              padding: 10,
+              titleFont: { size: 16, weight: 'bold' },
+              bodyFont: { size: 14 },
+              borderColor: '#ccc',
+              borderWidth: 1,
+              caretSize: 8,
+              caretPadding: 5,
+            },
+            legend: { display: false }
+          }
+        }
+      });
+    }
+
+    // Render default 7-day chart
+    renderChart(labels7, data7, {
+      start: 'rgba(99, 102, 241, 0.7)',
+      end: 'rgba(165, 180, 252, 0.5)',
+      border: 'rgba(99, 102, 241, 1)',
+      hover: 'rgba(79, 70, 229, 0.8)'
+    });
+
+    // Switch period (7 or 30 days)
+    document.getElementById('periodSelect').addEventListener('change', function (e) {
+      period = e.target.value;
+      if (period === '7') {
+        renderChart(labels7, data7, {
+          start: 'rgba(99, 102, 241, 0.7)',
+          end: 'rgba(165, 180, 252, 0.5)',
+          border: 'rgba(99, 102, 241, 1)',
+          hover: 'rgba(79, 70, 229, 0.8)'
+        });
+      } else {
+        renderChart(labels30, data30, {
+          start: 'rgba(16, 185, 129, 0.7)',
+          end: 'rgba(110, 231, 183, 0.5)',
+          border: 'rgba(16, 185, 129, 1)',
+          hover: 'rgba(5, 150, 105, 0.8)'
+        });
+      }
+    });
+
+    // Format downloaded size in human-readable form
+    const sizeEl = document.getElementById('downloadSize');
+    if (sizeEl) {
+      const rawBytes = parseInt(sizeEl.dataset.bytes, 10) || 0;
+      sizeEl.textContent = formatBytes(rawBytes);
+    }
+  });
+</script>
+{% endblock %}

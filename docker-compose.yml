@@ -1,0 +1,89 @@
+version: '3.9'
+
+services:
+  web:
+    build: .
+    command: daphne -e tcp:8000:interface=0.0.0.0 xris.asgi:application
+    working_dir: /app/xris
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    env_file:
+      - ./xris/.env
+    depends_on:
+      - db
+      - redis
+      - rabbitmq
+
+  celery:
+    build: .
+    command: celery -A xris worker --loglevel=info
+    working_dir: /app/xris
+    volumes:
+      - .:/app
+    env_file:
+      - ./xris/.env
+    depends_on:
+      - db
+      - redis
+      - rabbitmq
+
+  beat:
+    build: .
+    command: >
+      celery -A xris beat
+      --loglevel=info
+      --schedule=/app/celerydata/celerybeat-schedule
+    working_dir: /app/xris
+    volumes:
+      - .:/app
+    env_file:
+      - ./xris/.env
+    depends_on:
+      - db
+      - redis
+      - rabbitmq
+
+  flower:
+    build: .
+    command: celery -A xris flower --port=5555 --address=0.0.0.0
+    working_dir: /app/xris
+    ports:
+      - "5555:5555"
+    volumes:
+      - .:/app
+    env_file:
+      - ./xris/.env
+    depends_on:
+      - redis
+      - rabbitmq
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    hostname: rabbit
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"   # Broker port for Celery
+      - "15672:15672" # Management UI
+
+  db:
+    image: postgres:17-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    environment:
+      POSTGRES_DB: xris
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5435:5432"  # Host:Container
+
+volumes:
+  postgres_data:

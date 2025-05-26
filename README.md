@@ -1,11 +1,11 @@
 
 ---
 
-# 📡 XRAS — X-Band Radar Analysis System
+# 📡 XRIS — X-Band Radar Information System
 
-![XRAS Logo](xras/static/img/logo.png)
+![XRIS Logo](xris/static/img/logo.png)
 
-XRAS (**X-Band Radar Analysis System**) is a powerful Django-based platform built to manage, analyze, and visualize radar datasets like CSV, TIFF, and PNG files, especially for researchers and meteorologists at **UTM**.
+XRIS (**X-Band Radar Information System**) is a powerful Django-based platform built to manage, analyze, and visualize radar datasets like CSV, TIFF, and PNG files, especially for researchers and meteorologists at **UTM**.
 
 ---
 
@@ -25,7 +25,7 @@ XRAS (**X-Band Radar Analysis System**) is a powerful Django-based platform buil
 ## 📂 Project Structure
 
 ```bash
-XRAS/
+XRIS/
 ├── assets/             # Custom static assets (optional)
 ├── datasets/           # Radar datasets app
 │   ├── models.py       # XmprData, XmprDownloadLog
@@ -47,7 +47,7 @@ XRAS/
 │   ├── css/
 │   ├── js/
 ├── media/              # Uploaded media files (managed via Django)
-├── xras/               # Main Django project settings
+├── xris/               # Main Django project settings
 │   ├── settings.py     # Full secured settings with Redis, Channels, Stripe
 │   ├── urls.py
 │   ├── schema.py       # GraphQL API for latest radar data
@@ -78,7 +78,7 @@ XRAS/
 - Smooth panning, zoom, and switching between frames.
 - Responsive and mobile-friendly!
 
-![Live Radar Example](xras/static/img/bg_map.png)
+![Live Radar Example](xris/static/img/bg_map.png)
 
 ---
 
@@ -96,8 +96,8 @@ XRAS/
 
 ```bash
 # Clone the repo
-git clone https://github.com/saislamb97/xras.git
-cd xras
+git clone https://github.com/saislamb97/xris.git
+cd xris
 
 # Create virtual environment
 python -m venv venv
@@ -125,7 +125,7 @@ python manage.py runserver
 
 ```env
 DJANGO_SECRET_KEY=your-django-secret-key
-DJANGO_DATABASE_NAME=xras
+DJANGO_DATABASE_NAME=xris
 DJANGO_DATABASE_USER=postgres
 DJANGO_DATABASE_PASSWORD=postgres
 DJANGO_DATABASE_HOST=127.0.0.1
@@ -166,16 +166,6 @@ REGION=your-aws-region
 ## 🤝 Contributions
 
 > Contributions are welcome! Please fork the project and submit a pull request. 🚀
-
----
-
-## 🙌 Acknowledgements
-
-- **Django** — The web framework that makes this possible.
-- **Tailwind CSS** — Rapid beautiful frontend.
-- **MapLibre GL** — Open-source maps for real-time visualization.
-- **Graphene-Django** — GraphQL support.
-- **UTM Radar System Team** — For data and inspiration.
 
 ---
 
