@@ -25,7 +25,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # ------------------------------------------------------------------------------  
 # Load environment variables  
 # ------------------------------------------------------------------------------  
-load_dotenv(dotenv_path=Path(BASE_DIR) / '.env')  
+load_dotenv(dotenv_path=Path(BASE_DIR).parent / '.env')  
   
 DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 'yes')
 

@@ -10,7 +10,7 @@ services:
     volumes:
       - .:/app
     env_file:
-      - ./xris/.env
+      - .env
     depends_on:
       - db
       - redis
@@ -23,7 +23,7 @@ services:
     volumes:
       - .:/app
     env_file:
-      - ./xris/.env
+      - .env
     depends_on:
       - db
       - redis
@@ -34,12 +34,13 @@ services:
     command: >
       celery -A xris beat
       --loglevel=info
+      --scheduler django
       --schedule=/app/celerydata/celerybeat-schedule
     working_dir: /app/xris
     volumes:
       - .:/app
     env_file:
-      - ./xris/.env
+      - .env
     depends_on:
       - db
       - redis
@@ -54,7 +55,7 @@ services:
     volumes:
       - .:/app
     env_file:
-      - ./xris/.env
+      - .env
     depends_on:
       - redis
       - rabbitmq
@@ -71,7 +72,7 @@ services:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
     ports:
-      - "5672:5672"   # Broker port for Celery
+      - "5672:5672"   # Broker port
       - "15672:15672" # Management UI
 
   db:

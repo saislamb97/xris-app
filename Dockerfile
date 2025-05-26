@@ -3,8 +3,8 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# Set the working directory to your Django app
-WORKDIR /app/xris
+# Set root working dir
+WORKDIR /app
 
 # System dependencies
 RUN apt-get update && apt-get install -y \
@@ -15,17 +15,17 @@ RUN apt-get update && apt-get install -y \
     netcat \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python packages
-COPY requirements.txt /app/requirements.txt
-RUN pip install --upgrade pip && pip install -r /app/requirements.txt
+# Install dependencies
+COPY requirements.txt .
+RUN pip install --upgrade pip && pip install -r requirements.txt
 
-# Copy the rest of the project files
-COPY . /app
+# Copy all source code
+COPY . .
 
-# Create the Celery beat schedule dir
+# Create celery beat schedule dir
 RUN mkdir -p /app/celerydata
 
-# Add entrypoint script
+# Entrypoint
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
