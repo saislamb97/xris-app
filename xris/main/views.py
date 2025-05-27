@@ -14,11 +14,12 @@ from django.core.cache import cache
 from django.db.models.functions import TruncDate, Coalesce
 from django.db.models import Count, Q, Sum
 from django.db.models.functions import Coalesce
+import logging
 from django.core.paginator import Paginator
 from .models import ProjectConfig, HeroSection, AboutXMPR, GalleryImage
-from processor.tasks import move_and_process_files, scan_and_insert_by_file_key
-from subscriptions.tasks import update_subscription_statuses
-import logging
+from subscriptions.tasks import trigger_subscription_update
+from processor.tasks import trigger_xmpr_pipeline
+
 logger = logging.getLogger(__name__)
 
 
@@ -32,15 +33,8 @@ def landing(request):
     return render(request, "landing.html", context)
 
 def live_radar(request):
-    last_run = cache.get("last_xmpr_scan")
-    now_time = now()
-
-    if not last_run or (now_time - last_run) > timedelta(minutes=2):
-        move_and_process_files.delay()
-        scan_and_insert_by_file_key.delay()
-        cache.set("last_xmpr_scan", now_time, timeout=20)  # expires in 20 seconds
-        logger.info("Triggered move_and_process_files and scan_and_insert_by_file_key tasks.")
-
+    xmpr_triggered = trigger_xmpr_pipeline()
+    logger.info(f"XMPR triggered: {xmpr_triggered}")
     return render(request, 'live_radar.html')
 
 @login_required
@@ -48,10 +42,10 @@ def live_radar(request):
 def home(request):
     user = request.user
 
-    if not cache.get("subscription_check_last_run"):
-        update_subscription_statuses.delay()
-        cache.set("subscription_check_last_run", True, 86400)
-        logger.info("Triggered update_subscription_statuses task.")
+    xmpr_triggered = trigger_xmpr_pipeline()
+    subs_triggered = trigger_subscription_update()
+
+    logger.info(f"XMPR triggered: {xmpr_triggered}, Subscription triggered: {subs_triggered}")
 
     # --- Recent admin activity logs ---
     recent_logs = LogEntry.objects.filter(user=user).order_by('-action_time')[:5]

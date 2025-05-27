@@ -12,12 +12,15 @@ from celery import shared_task
 import logging
 from datasets.models import XmprData as DatasetXmprData
 from processor.models import XmprData as ProcessorXmprData
-
+from datetime import timedelta
 from processor.utils.formatter import TranslateFormat
 from processor.utils.coordinates import CoordinateSystem
 from processor.utils.gdal_tools import ModGdal
 from processor.utils.image import ascii2img
-from processor.utils.file_ops import file_delete, move_row_files, move_csv_files
+from processor.utils.file_ops import file_delete, move_raw_files, move_csv_files
+from django.core.cache import cache
+from django.utils.timezone import now
+
 logger = logging.getLogger(__name__)
 
 
@@ -231,7 +234,7 @@ def move_and_process_files():
     logger.info("=== move_and_process_files start ===")
 
     # 1) Move any raw rain-RT files
-    move_row_files()
+    move_raw_files()
     logger.info("Moved rain-RT files")
 
     csv_root = os.path.join(settings.MEDIA_ROOT, "csv")
@@ -281,3 +284,36 @@ def move_and_process_files():
         "failed": len(failed),
         "failed_files": failed_files
     }
+
+LOCK_EXPIRE = 120  # seconds
+
+def trigger_xmpr_pipeline(force=False):
+    cache_key = "last_xmpr_pipeline_run"
+    lock_key = "xmpr_pipeline_lock"
+    now_time = now()
+
+    # Check if pipeline ran recently
+    if not force and cache.get(cache_key):
+        logger.info("Skipped pipeline trigger: ran recently")
+        return False
+
+    # Prevent concurrent queueing
+    if cache.get(lock_key):
+        logger.info("Pipeline already running or queued")
+        return False
+
+    # Set lock for 2 minutes
+    cache.set(lock_key, True, timeout=LOCK_EXPIRE)
+
+    try:
+        move_and_process_files.delay()
+        logger.info("Dispatched move_and_process_files")
+
+        scan_and_insert_by_file_key.delay()
+        logger.info("Dispatched scan_and_insert_by_file_key")
+
+        cache.set(cache_key, now_time, timeout=LOCK_EXPIRE)
+        return True
+    finally:
+        # Let lock expire naturally to prevent race conditions
+        pass

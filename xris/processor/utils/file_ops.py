@@ -30,7 +30,7 @@ def has_enough_space(path, required_bytes=10 * 1024 * 1024):  # Default: 10MB
         return False
 
 
-def move_row_files():
+def move_raw_files():
     """
     Move files from MEDIA_ROOT/rain-RT → MEDIA_ROOT/raw/YYYY/MM/DD/
     """
