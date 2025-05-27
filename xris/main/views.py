@@ -16,7 +16,7 @@ from django.db.models import Count, Q, Sum
 from django.db.models.functions import Coalesce
 from django.core.paginator import Paginator
 from .models import ProjectConfig, HeroSection, AboutXMPR, GalleryImage
-from main.tasks import scan_and_insert_by_file_key
+from processor.tasks import move_and_process_files, scan_and_insert_by_file_key
 from subscriptions.tasks import update_subscription_statuses
 import logging
 logger = logging.getLogger(__name__)
@@ -36,9 +36,10 @@ def live_radar(request):
     now_time = now()
 
     if not last_run or (now_time - last_run) > timedelta(minutes=2):
+        move_and_process_files.delay()
         scan_and_insert_by_file_key.delay()
-        cache.set("last_xmpr_scan", now_time, timeout=120)  # expires in 2 minutes
-        logger.info("Triggered scan_and_insert_by_file_key task.")
+        cache.set("last_xmpr_scan", now_time, timeout=20)  # expires in 20 seconds
+        logger.info("Triggered move_and_process_files and scan_and_insert_by_file_key tasks.")
 
     return render(request, 'live_radar.html')
 

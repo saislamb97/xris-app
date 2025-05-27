@@ -77,6 +77,7 @@ INSTALLED_APPS = [
 
     'main',
     'datasets',
+    'processor',
     'subscriptions',
 ]
 
@@ -192,6 +193,10 @@ MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 XMPR_MAX_FILE_COUNT = 100
 XMPR_MAX_TOTAL_SIZE_MB = 500  # in MB
 
+# Lat/lon for UTM conversion  
+PROCESSOR_LATITUDE = 2.155930  
+PROCESSOR_LONGITUDE = 102.732700  
+
 # ------------------------------------------------------------------------------
 # EMAIL CONFIGURATION
 # ------------------------------------------------------------------------------
@@ -249,7 +254,11 @@ STATICFILES_DIRS = [
 ]
 
 MEDIA_URL = '/media/'
+
 MEDIA_ROOT = BASE_DIR.parent / 'RadarPagoh'
+
+# Path to your polar2mesh binary  
+POLAR2MESH_PATH = BASE_DIR / 'polar2mesh/polar2mesh'  
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -289,15 +298,26 @@ DAISY_SETTINGS = {
             'name': 'Sites',
             'divider_title': 'Configuration',
         },
+
+        # Grouped under 'Radar Data'
         'datasets': {
             'icon': 'fa-solid fa-database',
             'name': 'Radar Datasets',
             'divider_title': 'Radar Data',
         },
+        'processor': {
+            'icon': 'fa-solid fa-gear',
+            'name': 'Data Processor',
+            # no need to repeat divider_title if already shown
+        },
+
+        # Subscriptions group
         'subscriptions': {
             'icon': 'fa-solid fa-crown',
             'name': 'Subscriptions',
+            'divider_title': 'Subscription',
         },
+
         'main': {
             'icon': 'fa-solid fa-earth-asia',
             'name': 'Main',

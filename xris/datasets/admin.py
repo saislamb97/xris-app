@@ -21,7 +21,7 @@ class XmprDataAdmin(admin.ModelAdmin):
         'download_csv', 'download_tiff', 'preview_png'
     )
     list_filter = ('time', 'created_at', 'updated_at')
-    search_fields = ('time',)
+    search_fields = ('time', 'csv')
     ordering = ('-time',)
     readonly_fields = (
         'created_at', 'updated_at', 'preview_png',
