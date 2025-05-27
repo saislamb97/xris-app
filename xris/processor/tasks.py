@@ -124,7 +124,6 @@ def process_csv_file(csv_relative_path: str):
     • Convert mesh -> GeoTIFF & PNG
     • Insert into DB (if new)
     """
-
     media_root = settings.MEDIA_ROOT
     csv_path   = os.path.join(media_root, csv_relative_path)
     basename   = os.path.splitext(os.path.basename(csv_path))[0]
@@ -133,9 +132,8 @@ def process_csv_file(csv_relative_path: str):
     try:
         with open(csv_path, "r") as fh:
             data_rows = [ln for ln in fh if ln.strip()]
-        if len(data_rows) < 11:          # header + <10 rows
-            logger.warning(f"Skip {csv_relative_path}: only "
-                           f"{len(data_rows)-1} data rows")
+        if len(data_rows) < 11:
+            logger.warning(f"Skip {csv_relative_path}: only {len(data_rows)-1} data rows")
             return f"Too few rows ({len(data_rows)-1})"
     except Exception as e:
         logger.error(f"Cannot read {csv_relative_path}: {e}")
@@ -145,13 +143,13 @@ def process_csv_file(csv_relative_path: str):
     tmp_dir = os.path.join(media_root, "temp")
     os.makedirs(tmp_dir, exist_ok=True)
 
-    polar_path = os.path.join(tmp_dir, f"polar_{basename}")   # <-- NO EXT
-    mesh_path  = os.path.join(tmp_dir, f"mesh_{basename}")    # <-- NO EXT
+    polar_path = os.path.join(tmp_dir, f"polar_{basename}")
+    mesh_path  = os.path.join(tmp_dir, f"mesh_{basename}")
 
     try:
         logger.info(f"▶︎  Processing {csv_path}")
 
-        # 1. CSV → SSV  (extension-less)
+        # 1. CSV → SSV
         TranslateFormat.to_ssv(csv_path, polar_path)
         if not os.path.isfile(polar_path) or os.path.getsize(polar_path) == 0:
             err = f"SSV not created: {polar_path}"
@@ -172,14 +170,15 @@ def process_csv_file(csv_relative_path: str):
 
         # 3. datetime from filename
         date_part, time_part = basename.split("_", 2)[:2]
-        dt = make_aware(datetime.strptime(f"{date_part}_{time_part}",
-                                          "%Y%m%d_%H%M%S"))
+        dt = make_aware(datetime.strptime(f"{date_part}_{time_part}", "%Y%m%d_%H%M%S"))
 
         # 4. UTM
-        utm = CoordinateSystem.latlon2utm(settings.PROCESSOR_LONGITUDE,
-                                          settings.PROCESSOR_LATITUDE)
+        utm = CoordinateSystem.latlon2utm(
+            settings.PROCESSOR_LONGITUDE,
+            settings.PROCESSOR_LATITUDE
+        )
 
-        # 5. final output folders
+        # 5. Final output folders
         y, m, d = dt.strftime("%Y"), dt.strftime("%m"), dt.strftime("%d")
         tif_dir = os.path.join(media_root, "images", "tif", y, m, d)
         png_dir = os.path.join(media_root, "images", "png", y, m, d)
@@ -198,17 +197,20 @@ def process_csv_file(csv_relative_path: str):
         ascii2img(data, png_path)
         logger.info(f"PNG   → {png_path}")
 
-        # 8. DB
-        if ProcessorXmprData.objects.filter(csv=csv_relative_path).exists():
-            logger.warning(f"DB already has {csv_relative_path}")
+        # 8. Determine converted CSV path (instead of 'csv/...')
+        converted_csv_path = os.path.join("converted", y, m, d, os.path.basename(csv_path))
+
+        # 9. DB
+        if ProcessorXmprData.objects.filter(csv=converted_csv_path).exists():
+            logger.warning(f"DB already has {converted_csv_path}")
         else:
             ProcessorXmprData.objects.create(
-                time   = dt,
-                csv    = csv_relative_path,
-                image  = os.path.relpath(png_path, media_root),
-                geotiff= os.path.relpath(tif_path, media_root),
+                time=dt,
+                csv=converted_csv_path,
+                image=os.path.relpath(png_path, media_root),
+                geotiff=os.path.relpath(tif_path, media_root),
             )
-            logger.info(f"DB insert ✓  {csv_relative_path}")
+            logger.info(f"DB insert ✓  {converted_csv_path}")
 
         return 1
 
@@ -223,7 +225,6 @@ def process_csv_file(csv_relative_path: str):
     finally:
         file_delete(polar_path, mesh_path)
         logger.debug("Temp cleaned")
-
 
 @shared_task
 def move_and_process_files():
