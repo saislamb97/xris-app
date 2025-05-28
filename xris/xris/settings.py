@@ -253,12 +253,11 @@ STATICFILES_DIRS = [
     BASE_DIR / "assets",  # if you have custom static assets
 ]
 
-MEDIA_URL = '/media/'
-
-MEDIA_ROOT = BASE_DIR.parent / 'RadarPagoh'
-
-# Path to your polar2mesh binary  
-POLAR2MESH_PATH = BASE_DIR / 'polar2mesh/polar2mesh'  
+# Media Settings
+MEDIA_URL = os.getenv('MEDIA_URL', '/media/')
+MEDIA_ROOT = Path(os.getenv('MEDIA_ROOT', BASE_DIR.parent / 'RadarPagoh'))
+# Path to polar2mesh binary
+POLAR2MESH_PATH = Path(os.getenv('POLAR2MESH_PATH', BASE_DIR / 'polar2mesh/polar2mesh')) 
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field

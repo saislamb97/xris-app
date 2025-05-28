@@ -11,47 +11,42 @@ from django.conf import settings
 from celery import shared_task
 import logging
 from datasets.models import XmprData as DatasetXmprData
-from processor.models import XmprData as ProcessorXmprData
+from processor.models import XmprData as ProcessorXmprData, RainMapImage
 from datetime import timedelta
 from processor.utils.formatter import TranslateFormat
 from processor.utils.coordinates import CoordinateSystem
 from processor.utils.gdal_tools import ModGdal
 from processor.utils.image import ascii2img
 from processor.utils.file_ops import file_delete, move_raw_files, move_csv_files
+from processor.helpers import get_file_key_and_datetime, get_datetime_from_jpg
 from django.core.cache import cache
 from django.utils.timezone import now
+from celery import chain
+
 
 logger = logging.getLogger(__name__)
 
-
-# Constants
+# Resolve source directory
 SOURCE_DIR = Path(settings.MEDIA_ROOT).resolve()
-TARGET_EXTS = ['.csv', '.png', '.tif', '.tiff']
 
-TARGET_DIRS = [
-    SOURCE_DIR / "converted",
-    SOURCE_DIR / "images" / "png",
-    SOURCE_DIR / "images" / "tif",
-]
+# Case-insensitive target extensions
+TARGET_EXTS = {'.csv', '.png', '.tif', '.tiff', '.jpg'}
 
+# Directory list from .env or fallback
+default_dirs = ["converted", "images/png", "images/tif", "RainMAP_JPEG"]
+env_dirs = os.getenv('TARGET_DIRS')
+dir_names = [d.strip() for d in env_dirs.split(',')] if env_dirs else default_dirs
 
-def get_file_key_and_datetime(filename):
-    pattern = re.compile(r"(?P<key>\d{8}_\d{6}_[^_]+_\d{3})\.(csv|png|tif|tiff)", re.IGNORECASE)
-    match = pattern.match(filename)
-    if match:
-        key = match.group("key")
-        try:
-            dt = make_aware(datetime.strptime("_".join(key.split("_")[:2]), "%Y%m%d_%H%M%S"))
-            return key, dt
-        except ValueError:
-            return None, None
-    return None, None
+TARGET_DIRS = [SOURCE_DIR / d for d in dir_names]
 
 
 @shared_task
-def scan_and_insert_by_file_key():
+def scan_and_insert_by_file_key(_result=None):
+    from collections import defaultdict
     file_map = defaultdict(lambda: {'csv': None, 'png': None, 'tiff': None, 'datetime': None})
+    rainmap_inserted = 0
 
+    # Phase 1: Walk directories and build file map
     for base_dir in TARGET_DIRS:
         if not base_dir.exists():
             continue
@@ -63,6 +58,7 @@ def scan_and_insert_by_file_key():
                     continue
 
                 full_path = Path(root) / file
+
                 try:
                     size = full_path.stat().st_size
                     if size == 0:
@@ -70,17 +66,27 @@ def scan_and_insert_by_file_key():
                 except Exception:
                     continue
 
-                key, dt = get_file_key_and_datetime(file)
-                if not key or not dt:
-                    continue
-
                 try:
                     rel_path = full_path.resolve().relative_to(SOURCE_DIR).as_posix()
                 except ValueError:
                     continue
 
-                file_map[key]['datetime'] = dt
+                # Phase 1A: RainMapImage
+                if ext == '.jpg':
+                    dt = get_datetime_from_jpg(file)
+                    if dt and not RainMapImage.objects.filter(image=rel_path).exists():
+                        RainMapImage.objects.create(time=dt, image=rel_path)
+                        rainmap_inserted += 1
+                    continue
+
+                # Phase 1B: CSV/PNG/TIF Mapping
+                key, dt = get_file_key_and_datetime(file)
+                if not key or not dt:
+                    continue
+
                 file_info = {'path': rel_path, 'size': size}
+                file_map[key]['datetime'] = dt
+
                 if ext == '.csv':
                     file_map[key]['csv'] = file_info
                 elif ext == '.png':
@@ -88,34 +94,66 @@ def scan_and_insert_by_file_key():
                 elif ext in ['.tif', '.tiff']:
                     file_map[key]['tiff'] = file_info
 
-    inserted = 0
+    # Phase 2: Insert into DatasetXmprData
+    dataset_inserted = 0
     for group in file_map.values():
-        if not all(group.values()):
+        if not all([group['csv'], group['png'], group['tiff']]):
+            logger.debug(f"Skipped incomplete group: {group}")
             continue
 
-        exists = DatasetXmprData.objects.filter(
-            csv=group['csv']['path']
-        ).exists() or DatasetXmprData.objects.filter(
-            png=group['png']['path']
-        ).exists() or DatasetXmprData.objects.filter(
-            tiff=group['tiff']['path']
-        ).exists()
+        csv_path = group['csv']['path']
+        png_path = group['png']['path']
+        tiff_path = group['tiff']['path']
 
-        if exists:
+        if not DatasetXmprData.objects.filter(csv=csv_path).exists() \
+            and not DatasetXmprData.objects.filter(png=png_path).exists() \
+            and not DatasetXmprData.objects.filter(tiff=tiff_path).exists():
+            DatasetXmprData.objects.create(
+                time=group['datetime'],
+                csv=csv_path,
+                csv_size=group['csv']['size'],
+                png=png_path,
+                png_size=group['png']['size'],
+                tiff=tiff_path,
+                tiff_size=group['tiff']['size'],
+            )
+            dataset_inserted += 1
+
+    # Phase 3: Insert into ProcessorXmprData
+    processor_inserted = 0
+    for group in file_map.values():
+        if not all([group['csv'], group['png'], group['tiff']]):
             continue
 
-        DatasetXmprData.objects.create(
-            time=group['datetime'],
-            csv=group['csv']['path'],
-            csv_size=group['csv']['size'],
-            png=group['png']['path'],
-            png_size=group['png']['size'],
-            tiff=group['tiff']['path'],
-            tiff_size=group['tiff']['size'],
-        )
-        inserted += 1
+        csv_path = group['csv']['path']
+        png_path = group['png']['path']
+        tiff_path = group['tiff']['path']
 
-    return inserted
+        if not ProcessorXmprData.objects.filter(csv=csv_path).exists() \
+            and not ProcessorXmprData.objects.filter(image=png_path).exists() \
+            and not ProcessorXmprData.objects.filter(geotiff=tiff_path).exists():
+            ProcessorXmprData.objects.create(
+                time=group['datetime'],
+                csv=csv_path,
+                image=png_path,
+                geotiff=tiff_path,
+            )
+            processor_inserted += 1
+
+    logger.info(f"Inserted RainMap JPEGs: {rainmap_inserted}")
+    logger.info(f"Inserted into DatasetXmprData: {dataset_inserted}")
+    logger.info(f"Inserted into ProcessorXmprData: {processor_inserted}")
+
+    if _result:
+        logger.info(f"Previous move task: {_result['succeeded']} succeeded, {_result['failed']} failed")
+
+    return {
+        "input_result": _result,
+        "rainmap_inserted": rainmap_inserted,
+        "dataset_inserted": dataset_inserted,
+        "processor_inserted": processor_inserted
+    }
+
 
 
 @shared_task
@@ -285,6 +323,7 @@ def move_and_process_files():
         "failed_files": failed_files
     }
 
+
 LOCK_EXPIRE = 120  # seconds
 
 def trigger_xmpr_pipeline(force=False):
@@ -292,28 +331,26 @@ def trigger_xmpr_pipeline(force=False):
     lock_key = "xmpr_pipeline_lock"
     now_time = now()
 
-    # Check if pipeline ran recently
     if not force and cache.get(cache_key):
         logger.info("Skipped pipeline trigger: ran recently")
         return False
 
-    # Prevent concurrent queueing
     if cache.get(lock_key):
         logger.info("Pipeline already running or queued")
         return False
 
-    # Set lock for 2 minutes
     cache.set(lock_key, True, timeout=LOCK_EXPIRE)
 
     try:
-        move_and_process_files.delay()
-        logger.info("Dispatched move_and_process_files")
-
-        scan_and_insert_by_file_key.delay()
-        logger.info("Dispatched scan_and_insert_by_file_key")
+        task_chain = chain(
+            move_and_process_files.s(),
+            scan_and_insert_by_file_key.s()
+        )
+        task_chain.delay()
+        logger.info("Dispatched chained XMPR pipeline")
 
         cache.set(cache_key, now_time, timeout=LOCK_EXPIRE)
         return True
     finally:
-        # Let lock expire naturally to prevent race conditions
+        # Let lock expire naturally
         pass

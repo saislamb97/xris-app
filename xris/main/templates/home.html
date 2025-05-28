@@ -12,19 +12,19 @@
     <p>Here’s your XRIS overview.</p>
   </div>
 
-    {% if active_subscription %}
-      {% if active_subscription.pending_cancellation %}
-        <p class="text-sm mt-1 text-yellow-600">
-          ⚠️ Your subscription will cancel automatically on {{ active_subscription.expiry_date|date:"Y-m-d" }}.
-        </p>
-      {% endif %}
+  {% if active_subscription %}
+    {% if active_subscription.pending_cancellation %}
+      <p class="text-sm mt-1 text-yellow-600">
+        ⚠️ Your subscription will cancel automatically on {{ active_subscription.expiry_date|date:"Y-m-d" }}.
+      </p>
     {% endif %}
+  {% endif %}
 
-  <!-- Stat Cards -->
+  <!-- Stat Cards : XMPR -->
   <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
     <div class="{% if active_subscription %}bg-green-200 text-green-900{% else %}bg-yellow-100 text-yellow-900{% endif %} p-4 rounded-lg shadow">
       <h2 class="text-lg font-semibold">Subscription</h2>
-    
+      
       {% if active_subscription %}
         <p class="mt-1">
           Your current Plan: 
@@ -34,7 +34,6 @@
           Expiry Date: 
           <span class="font-medium">{{ active_subscription.expiry_date|date:"Y-m-d h:i A" }}</span>
         </p>
-    
       {% else %}
         <p class="mt-1">
           Your current Plan: 
@@ -55,22 +54,42 @@
     </div>
 
     <div class="bg-yellow-100 p-4 rounded-lg shadow text-yellow-900">
-      <h2 class="text-lg font-semibold">Downloads</h2>
+      <h2 class="text-lg font-semibold">XMPR Downloads</h2>
       <p class="text-3xl font-bold mt-2">{{ download_count|default:"0" }}</p>
     </div>
 
     <div class="bg-indigo-100 p-4 rounded-lg shadow text-indigo-900">
-      <h2 class="text-lg font-semibold">Downloaded Size</h2>
+      <h2 class="text-lg font-semibold">XMPR Downloaded Size</h2>
       <p class="text-3xl font-bold mt-2" id="downloadSize" data-bytes="{{ total_downloaded_size }}">
         {{ total_downloaded_size|filesizeformat }}
       </p>
     </div>
   </div>
 
-  <!-- Download Charts -->
+  <!-- Stat Cards : RainMap -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+    <div class="bg-teal-100 p-4 rounded-lg shadow text-teal-900">
+      <h2 class="text-lg font-semibold">RainMap Images</h2>
+      <p class="text-3xl font-bold mt-2">{{ rainmap_count|default:"0" }}</p>
+    </div>
+
+    <div class="bg-cyan-100 p-4 rounded-lg shadow text-cyan-900">
+      <h2 class="text-lg font-semibold">RainMap Downloads</h2>
+      <p class="text-3xl font-bold mt-2">{{ rainmap_download_count|default:"0" }}</p>
+    </div>
+
+    <div class="bg-sky-100 p-4 rounded-lg shadow text-sky-900">
+      <h2 class="text-lg font-semibold">RainMap Downloaded Size</h2>
+      <p class="text-3xl font-bold mt-2" id="rainmapSize" data-bytes="{{ rainmap_total_size }}">
+        {{ rainmap_total_size|filesizeformat }}
+      </p>
+    </div>
+  </div>
+
+  <!-- Download Charts : XMPR -->
   <div class="bg-white rounded-lg shadow p-6">
     <div class="flex justify-between items-center mb-4">
-      <h2 class="text-xl font-semibold">Download Trends</h2>
+      <h2 class="text-xl font-semibold">XMPR Download Trends</h2>
       <select id="periodSelect" class="border rounded px-2 py-1">
         <option value="7" selected>Last 7 Days</option>
         <option value="30">Last 30 Days</option>
@@ -79,10 +98,22 @@
     <canvas id="downloadsChart" class="w-full h-64"></canvas>
   </div>
 
-  <!-- Recent Uploads & Downloads -->
+  <!-- Download Charts : RainMap -->
+  <div class="bg-white rounded-lg shadow p-6">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="text-xl font-semibold">RainMap Download Trends</h2>
+      <select id="rainmapPeriodSelect" class="border rounded px-2 py-1">
+        <option value="7" selected>Last 7 Days</option>
+        <option value="30">Last 30 Days</option>
+      </select>
+    </div>
+    <canvas id="rainmapDownloadsChart" class="w-full h-64"></canvas>
+  </div>
+
+  <!-- Recent Uploads & Downloads : XMPR -->
   <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
     <div class="bg-white rounded-lg shadow p-6">
-      <h2 class="text-xl font-semibold mb-4">Recent Uploads</h2>
+      <h2 class="text-xl font-semibold mb-4">XMPR Recent Uploads</h2>
       {% if recent_uploads %}
       <ul class="space-y-2 text-gray-700">
         {% for upload in recent_uploads %}
@@ -97,12 +128,45 @@
     </div>
 
     <div class="bg-white rounded-lg shadow p-6">
-      <h2 class="text-xl font-semibold mb-4">Recent Downloads</h2>
+      <h2 class="text-xl font-semibold mb-4">XMPR Recent Downloads</h2>
       {% if recent_downloads %}
       <ul class="space-y-2 text-gray-700">
         {% for download in recent_downloads %}
         <li class="border-l-4 border-green-500 pl-4">
           {{ download.downloaded_at|date:"Y-m-d h:i A" }} — <strong>{{ download.xmpr_data }}</strong>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="text-gray-500">No downloads found.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Recent Uploads & Downloads : RainMap -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+    <div class="bg-white rounded-lg shadow p-6">
+      <h2 class="text-xl font-semibold mb-4">RainMap Recent Uploads</h2>
+      {% if rainmap_recent_uploads %}
+      <ul class="space-y-2 text-gray-700">
+        {% for upload in rainmap_recent_uploads %}
+        <li class="border-l-4 border-teal-500 pl-4">
+          {{ upload.time|date:"Y-m-d h:i A" }} — <strong>{{ upload.file_size_display }}</strong>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="text-gray-500">No uploads found.</p>
+      {% endif %}
+    </div>
+
+    <div class="bg-white rounded-lg shadow p-6">
+      <h2 class="text-xl font-semibold mb-4">RainMap Recent Downloads</h2>
+      {% if rainmap_recent_downloads %}
+      <ul class="space-y-2 text-gray-700">
+        {% for download in rainmap_recent_downloads %}
+        <li class="border-l-4 border-cyan-500 pl-4">
+          {{ download.downloaded_at|date:"Y-m-d h:i A" }} — <strong>{{ download.rainmap }}</strong>
         </li>
         {% endfor %}
       </ul>
@@ -132,15 +196,7 @@
 
 <script>
   document.addEventListener('DOMContentLoaded', function () {
-    let chart = null;
-    let period = '7'; // default
-
-    const labels7 = {{ chart_labels_7|safe }};
-    const data7 = {{ chart_data_7|safe }};
-    const labels30 = {{ chart_labels_30|safe }};
-    const data30 = {{ chart_data_30|safe }};
-
-    // Utility: create gradient for bar fill
+    /* --------------------------- Shared Utils --------------------------- */
     function createGradient(ctx, colorStart, colorEnd) {
       const gradient = ctx.createLinearGradient(0, 0, 0, 400);
       gradient.addColorStop(0, colorStart);
@@ -148,7 +204,6 @@
       return gradient;
     }
 
-    // Utility: format bytes to human-readable format
     function formatBytes(bytes) {
       if (bytes === 0) return '0 B';
       const k = 1024;
@@ -157,12 +212,17 @@
       return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     }
 
-    // Chart rendering function
+    /* --------------------------- XMPR Chart --------------------------- */
+    const labels7 = {{ chart_labels_7|safe }};
+    const data7 = {{ chart_data_7|safe }};
+    const labels30 = {{ chart_labels_30|safe }};
+    const data30 = {{ chart_data_30|safe }};
+
+    let chart = null;
+
     function renderChart(labels, data, colors) {
       const ctx = document.getElementById('downloadsChart').getContext('2d');
-      if (chart) {
-        chart.destroy();
-      }
+      if (chart) chart.destroy();
       const gradient = createGradient(ctx, colors.start, colors.end);
       chart = new Chart(ctx, {
         type: 'bar',
@@ -180,34 +240,13 @@
         },
         options: {
           responsive: true,
-          animation: {
-            duration: 1500,
-            easing: 'easeInOutQuart',
-          },
-          scales: {
-            y: {
-              beginAtZero: true,
-              ticks: { stepSize: 1 }
-            }
-          },
-          plugins: {
-            tooltip: {
-              backgroundColor: 'rgba(30,30,30,0.8)',
-              padding: 10,
-              titleFont: { size: 16, weight: 'bold' },
-              bodyFont: { size: 14 },
-              borderColor: '#ccc',
-              borderWidth: 1,
-              caretSize: 8,
-              caretPadding: 5,
-            },
-            legend: { display: false }
-          }
+          animation: { duration: 1500, easing: 'easeInOutQuart' },
+          scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
+          plugins: { tooltip: { backgroundColor: 'rgba(30,30,30,0.8)', padding: 10, titleFont: { size: 16, weight: 'bold' }, bodyFont: { size: 14 }, borderColor: '#ccc', borderWidth: 1, caretSize: 8, caretPadding: 5 }, legend: { display: false } }
         }
       });
     }
 
-    // Render default 7-day chart
     renderChart(labels7, data7, {
       start: 'rgba(99, 102, 241, 0.7)',
       end: 'rgba(165, 180, 252, 0.5)',
@@ -215,9 +254,8 @@
       hover: 'rgba(79, 70, 229, 0.8)'
     });
 
-    // Switch period (7 or 30 days)
     document.getElementById('periodSelect').addEventListener('change', function (e) {
-      period = e.target.value;
+      const period = e.target.value;
       if (period === '7') {
         renderChart(labels7, data7, {
           start: 'rgba(99, 102, 241, 0.7)',
@@ -235,11 +273,78 @@
       }
     });
 
-    // Format downloaded size in human-readable form
+    /* --------------------------- RainMap Chart --------------------------- */
+    const rLabels7 = {{ rainmap_labels_7|safe }};
+    const rData7 = {{ rainmap_data_7|safe }};
+    const rLabels30 = {{ rainmap_labels_30|safe }};
+    const rData30 = {{ rainmap_data_30|safe }};
+
+    let rainmapChart = null;
+
+    function renderRainmapChart(labels, data, colors) {
+      const ctx = document.getElementById('rainmapDownloadsChart').getContext('2d');
+      if (rainmapChart) rainmapChart.destroy();
+      const gradient = createGradient(ctx, colors.start, colors.end);
+      rainmapChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Downloads',
+            data,
+            backgroundColor: gradient,
+            borderColor: colors.border,
+            borderWidth: 2,
+            borderRadius: 6,
+            hoverBackgroundColor: colors.hover,
+          }]
+        },
+        options: {
+          responsive: true,
+          animation: { duration: 1500, easing: 'easeInOutQuart' },
+          scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
+          plugins: { tooltip: { backgroundColor: 'rgba(30,30,30,0.8)', padding: 10, titleFont: { size: 16, weight: 'bold' }, bodyFont: { size: 14 }, borderColor: '#ccc', borderWidth: 1, caretSize: 8, caretPadding: 5 }, legend: { display: false } }
+        }
+      });
+    }
+
+    renderRainmapChart(rLabels7, rData7, {
+      start: 'rgba(14, 165, 233, 0.7)',
+      end: 'rgba(186, 230, 253, 0.5)',
+      border: 'rgba(14, 165, 233, 1)',
+      hover: 'rgba(6, 148, 162, 0.8)'
+    });
+
+    document.getElementById('rainmapPeriodSelect').addEventListener('change', function (e) {
+      const period = e.target.value;
+      if (period === '7') {
+        renderRainmapChart(rLabels7, rData7, {
+          start: 'rgba(14, 165, 233, 0.7)',
+          end: 'rgba(186, 230, 253, 0.5)',
+          border: 'rgba(14, 165, 233, 1)',
+          hover: 'rgba(6, 148, 162, 0.8)'
+        });
+      } else {
+        renderRainmapChart(rLabels30, rData30, {
+          start: 'rgba(96, 165, 250, 0.7)',
+          end: 'rgba(219, 234, 254, 0.5)',
+          border: 'rgba(96, 165, 250, 1)',
+          hover: 'rgba(59, 130, 246, 0.8)'
+        });
+      }
+    });
+
+    /* --------------------------- Size Formatting --------------------------- */
     const sizeEl = document.getElementById('downloadSize');
     if (sizeEl) {
       const rawBytes = parseInt(sizeEl.dataset.bytes, 10) || 0;
       sizeEl.textContent = formatBytes(rawBytes);
+    }
+
+    const rainSizeEl = document.getElementById('rainmapSize');
+    if (rainSizeEl) {
+      const rawBytesR = parseInt(rainSizeEl.dataset.bytes, 10) || 0;
+      rainSizeEl.textContent = formatBytes(rawBytesR);
     }
   });
 </script>

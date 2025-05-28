@@ -44,6 +44,16 @@
             </div>
           </div>
 
+          <!-- ✅ RainMap Navigation -->
+          <div class="group relative">
+            <a href="{% url 'processor:rainmap_data' %}">
+              {% heroicon_outline "map" class="w-6 h-6 cursor-pointer" %}
+            </a>
+            <div class="absolute left-16 top-1/2 -translate-y-1/2 bg-white text-gray-800 px-3 py-1 rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-all whitespace-nowrap">
+              RainMap
+            </div>
+          </div>
+
           <div class="group relative">
             <a href="{% url 'subscriptions:subscription' %}">
               {% heroicon_outline "credit-card" class="w-6 h-6 cursor-pointer" %}

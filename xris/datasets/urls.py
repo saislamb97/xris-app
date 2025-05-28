@@ -7,5 +7,4 @@ urlpatterns = [
     path('xmpr/', xmpr_data, name='xmpr_data'),
     path('xmpr/download/', download_xmpr_data, name='download_xmpr_data'),
     path('analyze-xmpr/', analyze_xmpr_data, name='analyze_xmpr_data'),
-
 ]

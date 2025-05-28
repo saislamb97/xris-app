@@ -8,6 +8,7 @@ from django.utils.timezone import now
 from django.contrib.admin.models import LogEntry
 from django.shortcuts import render
 from datasets.models import XmprData, XmprDownloadLog
+from processor.models import RainMapImage, RainMapDownloadLog
 from subscriptions.models import Subscription, SubscriptionPackage
 from .forms import ProfileForm
 from django.core.cache import cache
@@ -47,34 +48,37 @@ def home(request):
 
     logger.info(f"XMPR triggered: {xmpr_triggered}, Subscription triggered: {subs_triggered}")
 
-    # --- Recent admin activity logs ---
+    # --- Admin activity logs ---
     recent_logs = LogEntry.objects.filter(user=user).order_by('-action_time')[:5]
 
-    # --- XMPR data count (with at least one file and size > 0) ---
+    # --- XMPR data ---
     xmpr_queryset = XmprData.objects.filter(
         Q(csv__isnull=False, csv_size__gt=0) |
         Q(png__isnull=False, png_size__gt=0) |
         Q(tiff__isnull=False, tiff_size__gt=0)
     )
     xmpr_count = xmpr_queryset.count()
-
-    # --- Downloads by current user ---
     user_downloads = XmprDownloadLog.objects.select_related('xmpr_data').filter(user=user)
     download_count = user_downloads.count()
-
-    # --- Total downloaded size (count repeated downloads too) ---
     total_downloaded_size = sum(
         (log.xmpr_data.csv_size or 0) +
         (log.xmpr_data.png_size or 0) +
         (log.xmpr_data.tiff_size or 0)
         for log in user_downloads if log.xmpr_data
     )
-
-    # --- Recent uploads and downloads ---
     recent_uploads = XmprData.objects.order_by('-created_at')[:5]
     recent_downloads = user_downloads.order_by('-downloaded_at')[:5]
 
-    # --- Download counts per day (7 days) ---
+    # --- RainMap data ---
+    rainmap_queryset = RainMapImage.objects.all()
+    rainmap_count = rainmap_queryset.count()
+    rainmap_downloads = RainMapDownloadLog.objects.select_related('rainmap').filter(user=user)
+    rainmap_download_count = rainmap_downloads.count()
+    rainmap_total_size = sum(log.rainmap.file_size_bytes for log in rainmap_downloads if log.rainmap)
+    rainmap_recent_uploads = RainMapImage.objects.order_by('-created_at')[:5]
+    rainmap_recent_downloads = rainmap_downloads.order_by('-downloaded_at')[:5]
+
+    # --- Download charts: XMPR ---
     downloads_7 = (
         user_downloads
         .filter(downloaded_at__gte=now() - timedelta(days=7))
@@ -86,7 +90,6 @@ def home(request):
     chart_labels_7 = [entry['day'].strftime('%Y-%m-%d') for entry in downloads_7]
     chart_data_7 = [entry['count'] for entry in downloads_7]
 
-    # --- Download counts per day (30 days) ---
     downloads_30 = (
         user_downloads
         .filter(downloaded_at__gte=now() - timedelta(days=30))
@@ -98,7 +101,30 @@ def home(request):
     chart_labels_30 = [entry['day'].strftime('%Y-%m-%d') for entry in downloads_30]
     chart_data_30 = [entry['count'] for entry in downloads_30]
 
-    # --- Subscription info ---
+    # --- Download charts: RainMap ---
+    rainmap_7 = (
+        rainmap_downloads
+        .filter(downloaded_at__gte=now() - timedelta(days=7))
+        .annotate(day=TruncDate('downloaded_at'))
+        .values('day')
+        .annotate(count=Count('id'))
+        .order_by('day')
+    )
+    rainmap_labels_7 = [entry['day'].strftime('%Y-%m-%d') for entry in rainmap_7]
+    rainmap_data_7 = [entry['count'] for entry in rainmap_7]
+
+    rainmap_30 = (
+        rainmap_downloads
+        .filter(downloaded_at__gte=now() - timedelta(days=30))
+        .annotate(day=TruncDate('downloaded_at'))
+        .values('day')
+        .annotate(count=Count('id'))
+        .order_by('day')
+    )
+    rainmap_labels_30 = [entry['day'].strftime('%Y-%m-%d') for entry in rainmap_30]
+    rainmap_data_30 = [entry['count'] for entry in rainmap_30]
+
+    # --- Subscription ---
     active_subscription = Subscription.objects.filter(
         user=user, status=Subscription.STATUS_ACTIVE
     ).first()
@@ -115,6 +141,15 @@ def home(request):
         'chart_data_7': chart_data_7,
         'chart_labels_30': chart_labels_30,
         'chart_data_30': chart_data_30,
+        'rainmap_count': rainmap_count,
+        'rainmap_download_count': rainmap_download_count,
+        'rainmap_total_size': rainmap_total_size,
+        'rainmap_recent_uploads': rainmap_recent_uploads,
+        'rainmap_recent_downloads': rainmap_recent_downloads,
+        'rainmap_labels_7': rainmap_labels_7,
+        'rainmap_data_7': rainmap_data_7,
+        'rainmap_labels_30': rainmap_labels_30,
+        'rainmap_data_30': rainmap_data_30,
         'active_subscription': active_subscription,
         'PACKAGE_FREE': SubscriptionPackage.PACKAGE_FREE,
     })

@@ -171,7 +171,6 @@ def download_xmpr_data(request):
 
     return response
 
-# Thresholds & Color Labels (from rainfallLegend)
 RAINFALL_THRESHOLDS = [
     (80, "Extreme"),
     (50, "Heavy"),
@@ -189,33 +188,21 @@ def is_float(value):
         return True
     except ValueError:
         return False
-
-def get_rain_zone_comment(percent, label):
-    if percent > 10:
-        return f"\u26a0\ufe0f High {label.lower()} rainfall coverage"
-    elif percent > 5:
-        return f"Noticeable {label.lower()} rainfall"
-    elif percent > 0:
-        return f"Minimal {label.lower()} rainfall"
-    return f"No {label.lower()} rainfall detected"
-
+    
 def read_and_analyze_csv(path):
     try:
         full_path = os.path.join(settings.MEDIA_ROOT, path)
         with open(full_path, "r", encoding="utf-8") as f:
             lines = f.readlines()
 
-        # --- Extract datetime from first line ---
         metadata = {}
         try:
-            raw_line = lines[0].strip().split(',')[0]  # ✅ Extract only the datetime portion
+            raw_line = lines[0].strip().split(',')[0]
             parsed_dt = parser.parse(raw_line, dayfirst=False, fuzzy=True)
             metadata["datetime"] = parsed_dt.strftime("%Y-%m-%d %H:%M:%S")
-        except Exception as e:
+        except Exception:
             metadata["datetime"] = "Unknown"
 
-
-        # --- Extract lat/lon/alt from the next few lines (usually float lines) ---
         for line in lines[1:10]:
             parts = [x.strip() for x in re.split(r"[,\t]", line) if x.strip()]
             if len(parts) == 1 and is_float(parts[0]):
@@ -225,26 +212,20 @@ def read_and_analyze_csv(path):
                         metadata[key] = val
                         break
 
-        # --- Parse the matrix data (starting from line 7 or later) ---
         matrix = []
         max_len = 0
-        for line in lines[6:]:  # adjust offset as needed
-            try:
-                row = [float(x) for x in re.split(r"[,\t]", line.strip()) if is_float(x)]
-                if row:
-                    max_len = max(max_len, len(row))
-                    matrix.append(row)
-            except:
-                continue
+        for line in lines[10:]:
+            row = [float(x) for x in re.split(r"[,\t]", line.strip()) if is_float(x)]
+            if row:
+                max_len = max(max_len, len(row))
+                matrix.append(row)
 
         if not matrix:
             return {"file": path, "error": "No valid matrix data"}
 
-        # Normalize row lengths
         matrix = [r + [0.0] * (max_len - len(r)) for r in matrix]
         arr = np.array(matrix)
 
-        # Compute stats
         arr_min = float(np.min(arr))
         arr_max = float(np.max(arr))
         arr_mean = float(np.mean(arr))
@@ -253,36 +234,12 @@ def read_and_analyze_csv(path):
         nonzero_percent = round(nonzero_count / arr.size * 100, 2)
         row_means = np.mean(arr, axis=1).tolist()
 
-        # Rainfall classification
         total_cells = arr.size
         rain_distribution = {}
         for i, (threshold, label) in enumerate(RAINFALL_THRESHOLDS):
             upper = RAINFALL_THRESHOLDS[i - 1][0] if i > 0 else float('inf')
             mask = (arr >= threshold) & (arr < upper)
             rain_distribution[label] = round(np.count_nonzero(mask) / total_cells * 100, 2)
-
-        extreme_percent = rain_distribution.get("Extreme", 0.0)
-        heavy_percent = rain_distribution.get("Heavy", 0.0)
-
-        if arr_mean >= 80:
-            rain_class = "Extreme"
-        elif arr_mean >= 50:
-            rain_class = "Heavy"
-        elif arr_mean >= 20:
-            rain_class = "Moderate"
-        elif arr_mean >= 1:
-            rain_class = "Light"
-        else:
-            rain_class = "None"
-
-        if arr_max > 100 and extreme_percent > 10:
-            decision = "\U0001F6A8 Extreme rainfall alert"
-        elif extreme_percent + heavy_percent > 10:
-            decision = "\u26A0\uFE0F Significant rainfall detected"
-        elif arr_max >= 5:
-            decision = "\u2614\uFE0F Some rainfall observed"
-        else:
-            decision = "\u2705 No significant rainfall"
 
         return {
             **metadata,
@@ -294,12 +251,6 @@ def read_and_analyze_csv(path):
             "std": arr_std,
             "nonzero_count": nonzero_count,
             "nonzero_percent": nonzero_percent,
-            "extreme_zone_percent": {
-                "value": extreme_percent,
-                "comment": get_rain_zone_comment(extreme_percent, "Extreme")
-            },
-            "rain_class": rain_class,
-            "decision": decision,
             "rain_distribution": rain_distribution,
             "matrix": arr.tolist(),
             "row_means": row_means,
