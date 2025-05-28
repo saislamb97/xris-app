@@ -17,7 +17,6 @@ def get_file_key_and_datetime(filename):
             return None, None
     return None, None
 
-# Utility for JPG timestamp
 def get_datetime_from_jpg(filename):
     pattern = re.compile(r"(?P<ts>\d{8}_\d{6})\.jpg$", re.IGNORECASE)
     match = pattern.match(filename)

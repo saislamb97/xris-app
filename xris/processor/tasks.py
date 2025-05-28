@@ -26,27 +26,19 @@ from celery import chain
 
 logger = logging.getLogger(__name__)
 
-# Resolve source directory
-SOURCE_DIR = Path(settings.MEDIA_ROOT).resolve()
-
-# Case-insensitive target extensions
-TARGET_EXTS = {'.csv', '.png', '.tif', '.tiff', '.jpg'}
-
-# Directory list from .env or fallback
-default_dirs = ["converted", "images/png", "images/tif", "RainMAP_JPEG"]
-env_dirs = os.getenv('TARGET_DIRS')
-dir_names = [d.strip() for d in env_dirs.split(',')] if env_dirs else default_dirs
-
-TARGET_DIRS = [SOURCE_DIR / d for d in dir_names]
-
-
 @shared_task
 def scan_and_insert_by_file_key(_result=None):
-    from collections import defaultdict
-    file_map = defaultdict(lambda: {'csv': None, 'png': None, 'tiff': None, 'datetime': None})
+    SOURCE_DIR = Path(settings.MEDIA_ROOT).resolve()
+    TARGET_EXTS = {'.csv', '.png', '.tif', '.tiff', '.jpg'}
+    default_dirs = ["converted", "images/png", "images/tif", "RainMAP_JPEG"]
+    env_dirs = os.getenv('TARGET_DIRS')
+    dir_names = [d.strip() for d in env_dirs.split(',')] if env_dirs else default_dirs
+    TARGET_DIRS = [SOURCE_DIR / d for d in dir_names]
+
+    folder_map = defaultdict(lambda: {'csv': [], 'png': [], 'tiff': [], 'jpg': []})
     rainmap_inserted = 0
 
-    # Phase 1: Walk directories and build file map
+    # Phase 1: Walk and bucket files by date folder
     for base_dir in TARGET_DIRS:
         if not base_dir.exists():
             continue
@@ -58,7 +50,6 @@ def scan_and_insert_by_file_key(_result=None):
                     continue
 
                 full_path = Path(root) / file
-
                 try:
                     size = full_path.stat().st_size
                     if size == 0:
@@ -71,7 +62,15 @@ def scan_and_insert_by_file_key(_result=None):
                 except ValueError:
                     continue
 
-                # Phase 1A: RainMapImage
+                # Determine folder date group: last 3 path components
+                try:
+                    root_path = Path(root)
+                    date_folder = "/".join(root_path.parts[-3:])  # e.g. '2024/12/22'
+                except IndexError:
+                    continue
+
+                entry = {'file': file, 'path': rel_path, 'size': size}
+
                 if ext == '.jpg':
                     dt = get_datetime_from_jpg(file)
                     if dt and not RainMapImage.objects.filter(image=rel_path).exists():
@@ -79,66 +78,54 @@ def scan_and_insert_by_file_key(_result=None):
                         rainmap_inserted += 1
                     continue
 
-                # Phase 1B: CSV/PNG/TIF Mapping
-                key, dt = get_file_key_and_datetime(file)
-                if not key or not dt:
-                    continue
-
-                file_info = {'path': rel_path, 'size': size}
-                file_map[key]['datetime'] = dt
-
                 if ext == '.csv':
-                    file_map[key]['csv'] = file_info
+                    folder_map[date_folder]['csv'].append(entry)
                 elif ext == '.png':
-                    file_map[key]['png'] = file_info
+                    folder_map[date_folder]['png'].append(entry)
                 elif ext in ['.tif', '.tiff']:
-                    file_map[key]['tiff'] = file_info
+                    folder_map[date_folder]['tiff'].append(entry)
 
-    # Phase 2: Insert into DatasetXmprData
     dataset_inserted = 0
-    for group in file_map.values():
-        if not all([group['csv'], group['png'], group['tiff']]):
-            logger.debug(f"Skipped incomplete group: {group}")
-            continue
-
-        csv_path = group['csv']['path']
-        png_path = group['png']['path']
-        tiff_path = group['tiff']['path']
-
-        if not DatasetXmprData.objects.filter(csv=csv_path).exists() \
-            and not DatasetXmprData.objects.filter(png=png_path).exists() \
-            and not DatasetXmprData.objects.filter(tiff=tiff_path).exists():
-            DatasetXmprData.objects.create(
-                time=group['datetime'],
-                csv=csv_path,
-                csv_size=group['csv']['size'],
-                png=png_path,
-                png_size=group['png']['size'],
-                tiff=tiff_path,
-                tiff_size=group['tiff']['size'],
-            )
-            dataset_inserted += 1
-
-    # Phase 3: Insert into ProcessorXmprData
     processor_inserted = 0
-    for group in file_map.values():
-        if not all([group['csv'], group['png'], group['tiff']]):
-            continue
 
-        csv_path = group['csv']['path']
-        png_path = group['png']['path']
-        tiff_path = group['tiff']['path']
+    # Phase 2: Match within folder and insert records
+    for date_folder, group in folder_map.items():
+        for csv_entry in group['csv']:
+            key, dt = get_file_key_and_datetime(csv_entry['file'])
+            if not key or not dt:
+                continue
 
-        if not ProcessorXmprData.objects.filter(csv=csv_path).exists() \
-            and not ProcessorXmprData.objects.filter(image=png_path).exists() \
-            and not ProcessorXmprData.objects.filter(geotiff=tiff_path).exists():
-            ProcessorXmprData.objects.create(
-                time=group['datetime'],
-                csv=csv_path,
-                image=png_path,
-                geotiff=tiff_path,
-            )
-            processor_inserted += 1
+            png_entry = next((p for p in group['png'] if p['file'].startswith(key)), None)
+            tiff_entry = next((t for t in group['tiff'] if t['file'].startswith(key)), None)
+
+            if not (png_entry and tiff_entry):
+                logger.debug(f"Incomplete match for {key} in {date_folder}")
+                continue
+
+            if not DatasetXmprData.objects.filter(csv=csv_entry['path']).exists() \
+                and not DatasetXmprData.objects.filter(png=png_entry['path']).exists() \
+                and not DatasetXmprData.objects.filter(tiff=tiff_entry['path']).exists():
+                DatasetXmprData.objects.create(
+                    time=dt,
+                    csv=csv_entry['path'],
+                    csv_size=csv_entry['size'],
+                    png=png_entry['path'],
+                    png_size=png_entry['size'],
+                    tiff=tiff_entry['path'],
+                    tiff_size=tiff_entry['size'],
+                )
+                dataset_inserted += 1
+
+            if not ProcessorXmprData.objects.filter(csv=csv_entry['path']).exists() \
+                and not ProcessorXmprData.objects.filter(image=png_entry['path']).exists() \
+                and not ProcessorXmprData.objects.filter(geotiff=tiff_entry['path']).exists():
+                ProcessorXmprData.objects.create(
+                    time=dt,
+                    csv=csv_entry['path'],
+                    image=png_entry['path'],
+                    geotiff=tiff_entry['path'],
+                )
+                processor_inserted += 1
 
     logger.info(f"Inserted RainMap JPEGs: {rainmap_inserted}")
     logger.info(f"Inserted into DatasetXmprData: {dataset_inserted}")
@@ -153,7 +140,6 @@ def scan_and_insert_by_file_key(_result=None):
         "dataset_inserted": dataset_inserted,
         "processor_inserted": processor_inserted
     }
-
 
 
 @shared_task
