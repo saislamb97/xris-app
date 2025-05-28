@@ -1,83 +1,125 @@
 {% extends "account/base_manage_email.html" %}
 {% load static allauth i18n %}
+
 {% block head_title %}
-    {% trans "Email Addresses" %}
+  {% trans "Email Addresses" %}
 {% endblock head_title %}
+
 {% block content %}
+  <!-- Page Title -->
+  <div class="text-center mb-6 animate-fade-in">
     {% element h1 %}
-        {% trans "Email Addresses" %}
+      <h1 class="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
+        {% trans "Manage Your Emails" %}
+      </h1>
     {% endelement %}
-    {% if emailaddresses %}
-        {% element p %}
-            {% trans 'The following email addresses are associated with your account:' %}
-        {% endelement %}
-        {% url 'account_email' as email_url %}
+    <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">
+      {% trans 'Keep your contact info up to date.' %}
+    </p>
+  </div>
+
+  {% if emailaddresses %}
+    <div class="max-w-xl mx-auto space-y-8 animate-fade-in">
+
+      <div class="bg-white dark:bg-gray-800 shadow-xl rounded-2xl p-6">
         {% element form form=form action=email_url method="post" tags="email,list" %}
-            {% slot body %}
-                {% csrf_token %}
-                {% for radio in emailaddress_radios %}
-                    {% with emailaddress=radio.emailaddress %}
-                        {% element field type="radio" checked=radio.checked name="email" value=emailaddress.email id=radio.id %}
-                            {% slot label %}
-                                {{ emailaddress.email }}
-                                {% if emailaddress.verified %}
-                                    {% element badge tags="success,email,verified" %}
-                                        {% translate "Verified" %}
-                                    {% endelement %}
-                                {% else %}
-                                    {% element badge tags="warning,email,unverified" %}
-                                        {% translate "Unverified" %}
-                                    {% endelement %}
-                                {% endif %}
-                                {% if emailaddress.primary %}
-                                    {% element badge tags="email,primary" %}
-                                        {% translate "Primary" %}
-                                    {% endelement %}
-                                {% endif %}
-                            {% endslot %}
-                        {% endelement %}
-                    {% endwith %}
-                {% endfor %}
-            {% endslot %}
-            {% slot actions %}
-                {% element button type="submit" name="action_primary" %}
-                    {% trans 'Make Primary' %}
-                {% endelement %}
-                {% element button tags="secondary" type="submit" name="action_send" %}
-                    {% trans 'Re-send Verification' %}
-                {% endelement %}
-                {% element button tags="danger,delete" type="submit" name="action_remove" %}
-                    {% trans 'Remove' %}
-                {% endelement %}
-            {% endslot %}
+          {% slot body %}
+            {% csrf_token %}
+            <div class="space-y-5">
+              {% for radio in emailaddress_radios %}
+                {% with emailaddress=radio.emailaddress %}
+                  <div class="border border-gray-200 dark:border-gray-700 p-4 rounded-xl transition hover:shadow-md">
+                    {% element field type="radio" checked=radio.checked name="email" value=emailaddress.email id=radio.id %}
+                      {% slot label %}
+                        <div class="flex items-center justify-between">
+                          <span class="font-medium text-gray-800 dark:text-gray-100">{{ emailaddress.email }}</span>
+                          <div class="flex flex-wrap gap-2">
+                            {% if emailaddress.verified %}
+                              {% element badge tags="success,email,verified" %}
+                                {% trans "Verified" %}
+                              {% endelement %}
+                            {% else %}
+                              {% element badge tags="warning,email,unverified" %}
+                                {% trans "Unverified" %}
+                              {% endelement %}
+                            {% endif %}
+                            {% if emailaddress.primary %}
+                              {% element badge tags="email,primary" %}
+                                {% trans "Primary" %}
+                              {% endelement %}
+                            {% endif %}
+                          </div>
+                        </div>
+                      {% endslot %}
+                    {% endelement %}
+                  </div>
+                {% endwith %}
+              {% endfor %}
+            </div>
+          {% endslot %}
+
+          {% slot actions %}
+            <div class="flex flex-wrap justify-center gap-4 mt-6">
+              {% element button type="submit" name="action_primary" %}
+                {% trans 'Make Primary' %}
+              {% endelement %}
+              {% element button tags="secondary" type="submit" name="action_send" %}
+                {% trans 'Re-send Verification' %}
+              {% endelement %}
+              {% element button tags="danger,delete" type="submit" name="action_remove" %}
+                {% trans 'Remove' %}
+              {% endelement %}
+            </div>
+          {% endslot %}
         {% endelement %}
-    {% else %}
-        {% include "account/snippets/warn_no_email.html" %}
-    {% endif %}
-    {% if can_add_email %}
+      </div>
+    </div>
+  {% else %}
+    <div class="max-w-xl mx-auto animate-fade-in">
+      {% include "account/snippets/warn_no_email.html" %}
+    </div>
+  {% endif %}
+
+  {% if can_add_email %}
+    <div class="mt-10 max-w-xl mx-auto animate-fade-in">
+      <div class="text-center mb-4">
         {% element h2 %}
-            {% trans "Add Email Address" %}
+          <h2 class="text-xl sm:text-2xl font-semibold text-gray-800 dark:text-white">
+            {% trans "Add a New Email" %}
+          </h2>
         {% endelement %}
+      </div>
+      <div class="bg-white dark:bg-gray-800 shadow-xl rounded-2xl p-6">
         {% url 'account_email' as action_url %}
         {% element form form=form method="post" action=action_url tags="email,add" %}
-            {% slot body %}
-                {% csrf_token %}
-                {% element fields form=form %}
-                {% endelement %}
-            {% endslot %}
-            {% slot actions %}
-                {% element button name="action_add" type="submit" %}
-                    {% trans "Add Email" %}
-                {% endelement %}
-            {% endslot %}
+          {% slot body %}
+            {% csrf_token %}
+            <div class="space-y-4">
+              {% element fields form=form %}
+              {% endelement %}
+            </div>
+          {% endslot %}
+          {% slot actions %}
+            <div class="mt-4 text-center">
+              {% element button name="action_add" type="submit" %}
+                {% trans "Add Email" %}
+              {% endelement %}
+            </div>
+          {% endslot %}
         {% endelement %}
-    {% endif %}
+      </div>
+    </div>
+  {% endif %}
 {% endblock content %}
+
 {% block extra_body %}
-    <script src="{% static 'account/js/account.js' %}"></script>
-    <script src="{% static 'account/js/onload.js' %}"></script>
-    <script data-allauth-onload="allauth.account.forms.manageEmailForm" type="application/json">{
-    "i18n": {"confirmDelete": "{% trans 'Do you really want to remove the selected email address?' %}"}
-}
-    </script>
+  <script src="{% static 'account/js/account.js' %}"></script>
+  <script src="{% static 'account/js/onload.js' %}"></script>
+  <script data-allauth-onload="allauth.account.forms.manageEmailForm" type="application/json">
+    {
+      "i18n": {
+        "confirmDelete": "{% trans 'Do you really want to remove the selected email address?' %}"
+      }
+    }
+  </script>
 {% endblock extra_body %}

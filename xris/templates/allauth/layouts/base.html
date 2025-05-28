@@ -11,82 +11,85 @@
   <link rel="icon" href="{% static 'img/favicon.ico' %}" type="image/x-icon">
   <link rel="stylesheet" href="{% static 'css/allauth.css' %}">
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @keyframes fade-in {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fade-in {
+      animation: fade-in 0.5s ease-out both;
+    }
+  </style>
   {% block extra_head %}{% endblock extra_head %}
 </head>
 
-<body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-100 min-h-screen flex flex-col justify-start font-sans">
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-100 font-sans">
 
-  <!-- Header -->
-  <header class="w-full py-6 px-4 sm:px-8 flex flex-col md:flex-row items-center justify-between bg-white dark:bg-gray-800 shadow-md">
+  <!-- Fixed Header -->
+  <header class="fixed top-0 left-0 w-full py-5 px-4 sm:px-8 flex flex-col md:flex-row items-center justify-between bg-white dark:bg-gray-800 shadow-md z-50">
     <div class="flex items-center gap-3">
       <a href="{% url 'main:home' %}">
         <img src="{% static 'img/logo.png' %}" alt="XRIS Logo" class="h-10 w-auto">
       </a>
       <span class="text-2xl font-bold tracking-tight text-gray-800 dark:text-white">XRIS</span>
     </div>
-
-    <div class="flex gap-4 mt-4 md:mt-0">
+    <div class="flex gap-3 mt-4 md:mt-0">
       {% if user.is_authenticated %}
-        <a href="{% url 'main:home' %}" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-5 rounded-lg shadow transition-all">
-          🏠 Home
-        </a>
+        <a href="{% url 'main:home' %}" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-5 rounded-lg shadow-md transition hover:-translate-y-0.5">🏠 Home</a>
       {% else %}
-        <a href="{% url 'main:landing' %}" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-5 rounded-lg shadow transition-all">
-          🚀 Get Started Free
-        </a>
+        <a href="{% url 'main:landing' %}" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-5 rounded-lg shadow-md transition hover:-translate-y-0.5">🚀 Get Started Free</a>
       {% endif %}
-      <a href="{% url 'main:live_radar' %}" class="bg-gray-100 hover:bg-blue-100 text-blue-700 font-semibold border border-blue-300 py-2 px-5 rounded-lg shadow transition-all">
-        View Live Radar
-      </a>
+      <a href="{% url 'main:live_radar' %}" class="bg-gray-100 hover:bg-blue-100 text-blue-700 font-semibold border border-blue-300 py-2 px-5 rounded-lg shadow-md transition hover:-translate-y-0.5">📡 Live Radar</a>
     </div>
   </header>
 
-  <!-- Page Container -->
-  <main class="flex-1 w-full max-w-5xl mx-auto px-4 py-10 space-y-8">
+  <!-- Full Page Flex Wrapper -->
+  <main class="pt-32 px-4 min-h-screen flex items-center justify-center">
+    <div class="w-full max-w-4xl space-y-10 animate-fade-in">
 
-    <!-- Messages -->
-    {% if messages %}
-      <div class="max-w-md mx-auto space-y-2">
-        {% for message in messages %}
-          <div class="rounded-lg px-4 py-3 text-sm font-medium
-            {% if message.tags == 'error' %}
-              bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100
-            {% elif message.tags == 'success' %}
-              bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100
-            {% else %}
-              bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100
-            {% endif %}">
-            {{ message }}
-          </div>
-        {% endfor %}
+      <!-- Flash Messages -->
+      {% if messages %}
+        <div class="max-w-md mx-auto space-y-3">
+          {% for message in messages %}
+            <div class="rounded-xl px-4 py-3 text-sm font-medium shadow-md
+              {% if message.tags == 'error' %}
+                bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100
+              {% elif message.tags == 'success' %}
+                bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100
+              {% else %}
+                bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100
+              {% endif %}">
+              {{ message }}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      <!-- Account Nav Links -->
+      <nav class="max-w-md mx-auto">
+        <ul class="grid gap-4 text-sm text-center sm:grid-cols-2 md:grid-cols-3">
+          {% if user.is_authenticated %}
+            {% url 'account_email' as email_url %}
+            {% url 'account_change_password' as change_password_url %}
+            {% url 'account_logout' as logout_url %}
+            <li><a href="{{ email_url }}" class="block bg-gray-100 dark:bg-gray-800 hover:bg-blue-500 dark:hover:bg-blue-600 hover:text-white rounded-xl px-4 py-2 font-medium transition">📧 Change Email</a></li>
+            <li><a href="{{ change_password_url }}" class="block bg-gray-100 dark:bg-gray-800 hover:bg-blue-500 dark:hover:bg-blue-600 hover:text-white rounded-xl px-4 py-2 font-medium transition">🔐 Change Password</a></li>
+            <li><a href="{{ logout_url }}" class="block bg-red-100 dark:bg-red-800 hover:bg-red-500 dark:hover:bg-red-600 hover:text-white rounded-xl px-4 py-2 font-medium transition">🚪 Sign Out</a></li>
+          {% else %}
+            {% url 'account_login' as login_url %}
+            {% url 'account_signup' as signup_url %}
+            <li><a href="{{ login_url }}" class="block bg-blue-100 dark:bg-blue-900 hover:bg-blue-500 dark:hover:bg-blue-600 hover:text-white rounded-xl px-4 py-2 font-medium transition">🔑 Sign In</a></li>
+            <li><a href="{{ signup_url }}" class="block bg-blue-100 dark:bg-blue-900 hover:bg-blue-500 dark:hover:bg-blue-600 hover:text-white rounded-xl px-4 py-2 font-medium transition">📝 Sign Up</a></li>
+          {% endif %}
+        </ul>
+      </nav>
+
+      <!-- Auth Page Content -->
+      <div class="max-w-lg mx-auto bg-white dark:bg-gray-800 p-10 rounded-3xl shadow-2xl transition-all animate-fade-in">
+        {% block content %}{% endblock content %}
       </div>
-    {% endif %}
 
-    <!-- Navigation -->
-    <nav class="max-w-md mx-auto">
-      <ul class="grid gap-3 text-sm text-center sm:grid-cols-2 md:grid-cols-3">
-        {% if user.is_authenticated %}
-          {% url 'account_email' as email_url %}
-          {% url 'account_change_password' as change_password_url %}
-          {% url 'account_logout' as logout_url %}
-          <li><a href="{{ email_url }}" class="block bg-gray-100 dark:bg-gray-800 hover:bg-blue-500 dark:hover:bg-blue-600 hover:text-white rounded-lg px-4 py-2 transition">Change Email</a></li>
-          <li><a href="{{ change_password_url }}" class="block bg-gray-100 dark:bg-gray-800 hover:bg-blue-500 dark:hover:bg-blue-600 hover:text-white rounded-lg px-4 py-2 transition">Change Password</a></li>
-          <li><a href="{{ logout_url }}" class="block bg-red-100 dark:bg-red-800 hover:bg-red-500 dark:hover:bg-red-600 hover:text-white rounded-lg px-4 py-2 transition">Sign Out</a></li>
-        {% else %}
-          {% url 'account_login' as login_url %}
-          {% url 'account_signup' as signup_url %}
-          <li><a href="{{ login_url }}" class="block bg-blue-100 dark:bg-blue-900 hover:bg-blue-500 dark:hover:bg-blue-600 hover:text-white rounded-lg px-4 py-2 transition">Sign In</a></li>
-          <li><a href="{{ signup_url }}" class="block bg-blue-100 dark:bg-blue-900 hover:bg-blue-500 dark:hover:bg-blue-600 hover:text-white rounded-lg px-4 py-2 transition">Sign Up</a></li>
-        {% endif %}
-      </ul>
-    </nav>
-
-    <!-- Auth Form Content -->
-    <div class="max-w-lg mx-auto bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg">
-      {% block content %}
-      {% endblock content %}
     </div>
-
   </main>
 
   {% block extra_body %}{% endblock extra_body %}
