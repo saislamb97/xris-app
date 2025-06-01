@@ -398,17 +398,9 @@ EMAIL_HOST_PASSWORD=your-email-password
 EMAIL_FROM=your-email@gmail.com
 
 # File System
-MEDIA_ROOT=/home/saiful/xris-app/RadarPagoh
-POLAR2MESH_PATH=/home/saiful/xris-app/xris/polar2mesh/polar2mesh
+MEDIA_ROOT=/RadarPagoh
+POLAR2MESH_PATH=/xris/polar2mesh/polar2mesh
 TARGET_DIRS=converted,images/png,images/tif,RainMAP_JPEG
-
-# Celery Beat
-CELERY_BEAT_SCHEDULE={
-  "run-xmpr-pipeline-every-2-minutes": {
-    "task": "processor.tasks.trigger_xmpr_pipeline",
-    "schedule": 120.0
-  }
-}
 ```
 
 > **Note:** Never commit your real secrets to version control.
