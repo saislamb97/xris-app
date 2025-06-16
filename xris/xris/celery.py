@@ -3,7 +3,7 @@ import os
 from celery import Celery
 
 # Set the broker URL directly
-BROKER_URL = 'amqp://guest@localhost:5672/'
+BROKER_URL = os.getenv('BROKER_URL', 'amqp://guest@localhost:5672/')
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'xris.settings')
 

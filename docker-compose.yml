@@ -1,36 +1,45 @@
-version: '3.9'
-
 services:
   web:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     command: daphne -e tcp:8000:interface=0.0.0.0 xris.asgi:application
     working_dir: /app/xris
     ports:
       - "8000:8000"
     volumes:
       - .:/app
+      - ${MEDIA_ROOT}:/app/media
     env_file:
       - .env
+    environment:
+      DATABASE_HOST: host.docker.internal
+      DATABASE_PORT: 5432
     depends_on:
-      - db
       - redis
       - rabbitmq
 
   celery:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     command: celery -A xris worker --loglevel=info
     working_dir: /app/xris
     volumes:
       - .:/app
     env_file:
       - .env
+    environment:
+      DATABASE_HOST: host.docker.internal
+      DATABASE_PORT: 5432
     depends_on:
-      - db
       - redis
       - rabbitmq
 
   beat:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     command: >
       celery -A xris beat
       --loglevel=info
@@ -41,13 +50,17 @@ services:
       - .:/app
     env_file:
       - .env
+    environment:
+      DATABASE_HOST: host.docker.internal
+      DATABASE_PORT: 5432
     depends_on:
-      - db
       - redis
       - rabbitmq
 
   flower:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     command: celery -A xris flower --port=5555 --address=0.0.0.0
     working_dir: /app/xris
     ports:
@@ -56,6 +69,9 @@ services:
       - .:/app
     env_file:
       - .env
+    environment:
+      DATABASE_HOST: host.docker.internal
+      DATABASE_PORT: 5432
     depends_on:
       - redis
       - rabbitmq
@@ -67,24 +83,8 @@ services:
 
   rabbitmq:
     image: rabbitmq:3-management
-    hostname: rabbit
-    environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
+    env_file:
+      - .env
     ports:
-      - "5672:5672"   # Broker port
-      - "15672:15672" # Management UI
-
-  db:
-    image: postgres:17-alpine
-    volumes:
-      - postgres_data:/var/lib/postgresql/data/
-    environment:
-      POSTGRES_DB: xris
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    ports:
-      - "5435:5432"  # Host:Container
-
-volumes:
-  postgres_data:
+      - "5672:5672"
+      - "15672:15672"

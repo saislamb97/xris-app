@@ -41,6 +41,8 @@ ALLOWED_HOSTS = [
     '127.0.0.1',
     '[::1]',
     parsed_host,
+    'xris-malaysia.com',         # the apex domain
+    '.xris-malaysia.com',        # **any** subdomain of xris-malaysia.com
 ]
 
 CSRF_TRUSTED_ORIGINS = [
@@ -149,7 +151,7 @@ DATABASES = {
         'NAME': os.getenv('DATABASE_NAME', 'xris'),
         'USER': os.getenv('DATABASE_USER', 'postgres'),
         'PASSWORD': os.getenv('DATABASE_PASSWORD', 'postgres'),
-        'HOST': os.getenv('DATABASE_HOST', '127.0.0.1'),
+        'HOST': os.getenv('DATABASE_HOST', 'localhost'),
         'PORT': os.getenv('DATABASE_PORT', '5432'),
         'OPTIONS': {
             'connect_timeout': 10,
@@ -160,10 +162,7 @@ DATABASES = {
 # ------------------------------------------------------------------------------
 # REDIS & CACHING
 # ------------------------------------------------------------------------------
-REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')
-REDIS_PORT = os.getenv('REDIS_PORT', '6379')  # Ensure port is a string
-REDIS_DB = os.getenv('REDIS_DB', '0')          # Ensure DB is a string
-REDIS_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
 
 CACHES = {
     'default': {
